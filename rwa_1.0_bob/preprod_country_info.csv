@@ -1,0 +1,11 @@
+incorporation_country,local_currency,country_dlgd,eea_country_flag,eea_country_ten_percent_dlgd_flag,country_internal_rating,country_external_rating,sov_concessionary_flag
+PL,PLN,0.0500,Y,Y,2.1,A,Y
+US,USD,0.0500,N,N,1.2,AA,Y
+GB,GBP,0.0500,N,N,2.1,A+,Y
+DE,EUR,0.0500,Y,Y,1.2,AA-,Y
+FR,EUR,0.0500,Y,Y,2.1,A+,Y
+NL,EUR,0.0500,Y,Y,1.2,AA,Y
+ES,EUR,0.1000,Y,Y,3.1,A-,N
+IT,EUR,0.1000,Y,Y,3.2,BBB+,N
+SE,SEK,0.0500,Y,Y,1.2,AA,Y
+CH,CHF,0.0500,N,N,1.1,AAA,Y
