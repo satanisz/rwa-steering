@@ -1,0 +1,109 @@
+{
+  "version_id": "BCBS_BASEL_III_FINAL_2017",
+  "production_ready": false,
+  "source_document": "Basel III: Finalising post-crisis reforms, December 2017",
+  "effective_from": null,
+  "effective_to": null,
+  "requires_legal_reconciliation": true,
+  "validation_hash": null,
+  "tables": {
+    "sovereign_external_rating_risk_weights": {
+      "source_pdf_pages": [8, 9],
+      "values": {
+        "AAA_TO_AA_MINUS": "0.00",
+        "A_PLUS_TO_A_MINUS": "0.20",
+        "BBB_PLUS_TO_BBB_MINUS": "0.50",
+        "BB_PLUS_TO_B_MINUS": "1.00",
+        "BELOW_B_MINUS": "1.50",
+        "UNRATED": "1.00"
+      }
+    },
+    "pse_option_1_risk_weights": {
+      "source_pdf_pages": [9, 10],
+      "values": {
+        "AAA_TO_AA_MINUS": "0.20",
+        "A_PLUS_TO_A_MINUS": "0.50",
+        "BBB_PLUS_TO_B_MINUS": "1.00",
+        "BELOW_B_MINUS": "1.50",
+        "UNRATED": "1.00"
+      }
+    },
+    "mdb_risk_weights": {
+      "source_pdf_pages": [10, 11],
+      "values": {
+        "ELIGIBLE_LISTED_MDB": "0.00",
+        "AAA_TO_AA_MINUS": "0.20",
+        "A_PLUS_TO_A_MINUS": "0.30",
+        "BBB_PLUS_TO_BBB_MINUS": "0.50",
+        "BB_PLUS_TO_B_MINUS": "1.00",
+        "BELOW_B_MINUS": "1.50",
+        "UNRATED": "0.50"
+      }
+    },
+    "bank_ecra_risk_weights": {
+      "source_pdf_pages": [11, 14],
+      "values": {
+        "AAA_TO_AA_MINUS": {"base": "0.20", "short_term": "0.20"},
+        "A_PLUS_TO_A_MINUS": {"base": "0.30", "short_term": "0.20"},
+        "BBB_PLUS_TO_BBB_MINUS": {"base": "0.50", "short_term": "0.20"},
+        "BB_PLUS_TO_B_MINUS": {"base": "1.00", "short_term": "0.50"},
+        "BELOW_B_MINUS": {"base": "1.50", "short_term": "1.50"}
+      }
+    },
+    "bank_scra_risk_weights": {
+      "source_pdf_pages": [11, 14],
+      "values": {
+        "GRADE_A": {"base": "0.40", "short_term": "0.20", "concession_base": "0.30"},
+        "GRADE_B": {"base": "0.75", "short_term": "0.50"},
+        "GRADE_C": {"base": "1.50", "short_term": "1.50"}
+      }
+    },
+    "corporate_external_rating_risk_weights": {
+      "source_pdf_pages": [16, 18],
+      "values": {
+        "AAA_TO_AA_MINUS": "0.20",
+        "A_PLUS_TO_A_MINUS": "0.50",
+        "BBB_PLUS_TO_BBB_MINUS": "0.75",
+        "BB_PLUS_TO_BB_MINUS": "1.00",
+        "BELOW_BB_MINUS": "1.50",
+        "UNRATED": "1.00",
+        "INVESTMENT_GRADE_UNRATED": "0.65",
+        "SME": "0.85"
+      }
+    },
+    "retail_risk_weights": {
+      "source_pdf_pages": [21, 22],
+      "values": {
+        "REGULATORY_RETAIL_TRANSACTOR": "0.45",
+        "OTHER_REGULATORY_RETAIL": "0.75",
+        "OTHER_RETAIL_INDIVIDUAL": "1.00"
+      }
+    },
+    "irb_risk_components": {
+      "source_pdf_pages": [66, 80],
+      "values": {
+        "corporate_bank_pd_floor": "0.0005",
+        "other_retail_pd_floor": "0.0005",
+        "qrre_pd_floor": "0.0010",
+        "bank_fi_foundation_lgd": "0.45",
+        "corporate_foundation_lgd": "0.40",
+        "subordinated_foundation_lgd": "0.75",
+        "maturity_floor_years": "1",
+        "maturity_cap_years": "5"
+      }
+    },
+    "output_floor": {
+      "source_pdf_pages": [141, 143],
+      "values": {
+        "final_floor_calibration": "0.725"
+      }
+    }
+  },
+  "national_discretion_flags": {
+    "allow_external_ratings": null,
+    "pse_treatment_option": null,
+    "allow_domestic_sovereign_preferential_rw": null,
+    "allow_real_estate_loan_splitting": null,
+    "apply_output_floor_transitional_cap": null
+  }
+}

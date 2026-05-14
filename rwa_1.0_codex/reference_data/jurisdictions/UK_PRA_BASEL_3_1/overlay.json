@@ -1,0 +1,26 @@
+{
+  "jurisdiction_id": "UK_PRA_BASEL_3_1",
+  "name": "United Kingdom PRA Basel 3.1 implementation",
+  "baseline_version_id": "BCBS_BASEL_III_FINAL_2017",
+  "production_ready": false,
+  "requires_legal_reconciliation": true,
+  "binding_sources_to_reconcile": [
+    "PRA Rulebook",
+    "PRA Basel 3.1 policy statements",
+    "PRA supervisory statements",
+    "Bank-specific PRA permissions"
+  ],
+  "application": {
+    "go_live_date": null,
+    "transition_calendar": "TO_BE_RECONCILED",
+    "reporting_templates": "TO_BE_RECONCILED"
+  },
+  "national_discretion_flags": {
+    "allow_external_ratings": true,
+    "pse_treatment_option": "TO_BE_RECONCILED",
+    "allow_domestic_sovereign_preferential_rw": "TO_BE_RECONCILED",
+    "allow_real_estate_loan_splitting": "TO_BE_RECONCILED",
+    "apply_output_floor_transitional_cap": "TO_BE_RECONCILED"
+  },
+  "overrides": {}
+}

@@ -1,0 +1,38 @@
+{
+  "package_id": "rwa_regulatory_reference_seed",
+  "package_version": "0.1.0",
+  "production_ready": false,
+  "description": "Seed reference-data package for Basel III final reforms.",
+  "baseline": {
+    "id": "BCBS_BASEL_III_FINAL_2017",
+    "path": "bcbs/basel_iii_final_reforms_2017.json",
+    "source_document": "Basel III: Finalising post-crisis reforms, December 2017"
+  },
+  "jurisdictions": [
+    {
+      "id": "EU_CRR3_EBA",
+      "name": "EU/EEA CRR3 and CRD6 implementation",
+      "path": "jurisdictions/EU_CRR3_EBA/overlay.json",
+      "production_ready": false
+    },
+    {
+      "id": "UK_PRA_BASEL_3_1",
+      "name": "United Kingdom PRA Basel 3.1 implementation",
+      "path": "jurisdictions/UK_PRA_BASEL_3_1/overlay.json",
+      "production_ready": false
+    },
+    {
+      "id": "CH_FINMA_BASEL_III_FINAL",
+      "name": "Swiss FINMA / Capital Adequacy Ordinance implementation",
+      "path": "jurisdictions/CH_FINMA_BASEL_III_FINAL/overlay.json",
+      "production_ready": false
+    }
+  ],
+  "quality_gates_before_production": [
+    "Reconcile every table against binding legal text and regulator rulebook.",
+    "Reconcile ECAI mappings and external rating eligibility rules.",
+    "Confirm bank-specific supervisory permissions and model approvals.",
+    "Sign off national discretions, transition calendars and reporting templates.",
+    "Freeze validation hash for each approved reference-data version."
+  ]
+}
