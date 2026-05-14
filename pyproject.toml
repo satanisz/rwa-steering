@@ -1,0 +1,149 @@
+[build-system]
+requires = ["setuptools>=80.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rwa-steering"
+version = "0.1.0"
+description = "Side-by-side Basel III RWA calculator implementations in a Python src layout."
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = { text = "Proprietary" }
+authors = [{ name = "RWA Steering Team" }]
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "httpx>=0.28,<1.0",
+    "pandas>=2.2,<3.0",
+    "pandera>=0.22,<1.0",
+    "pydantic>=2.10,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+    "python-multipart>=0.0.20,<1.0",
+    "scipy>=1.14,<2.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[project.scripts]
+rwa-bob = "rwa_bob.basel3_final_reforms.cli:main"
+rwa-bob-api = "rwa_bob.basel3_final_reforms.api:run"
+rwa-codex = "rwa_codex.rwa_backend:main"
+
+[dependency-groups]
+dev = [
+    "bandit[toml]>=1.8,<2.0",
+    "mypy>=1.15,<2.0",
+    "pip-audit>=2.8,<3.0",
+    "pre-commit>=4.0,<5.0",
+    "pytest>=9.0.3,<10.0",
+    "pytest-cov>=6.0,<8.0",
+    "pytest-xdist>=3.6,<4.0",
+    "ruff>=0.9,<1.0",
+    "types-requests>=2.32,<3.0",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rwa_bob = ["*.csv", "*.json", "*.md", "py.typed"]
+rwa_codex = ["*.csv", "*.json", "*.md", "py.typed", "reference_data/**/*.json", "reference_data/**/*.md"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+minversion = "8.3"
+testpaths = ["tests"]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "--cov=src",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=xml",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:pandera.*",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = [
+    "*/generate_preprod_rwa_dataset.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 70
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "B",
+    "BLE",
+    "C4",
+    "E",
+    "F",
+    "I",
+    "N",
+    "PERF",
+    "PIE",
+    "PT",
+    "RET",
+    "RUF",
+    "S",
+    "SIM",
+    "UP",
+    "W",
+]
+ignore = [
+    "B008",
+    "B904",
+    "BLE001",
+    "S101",
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "PT009"]
+"src/**/generate_preprod_rwa_dataset.py" = ["S311"]
+"src/rwa_bob/basel3_final_reforms/api.py" = ["S104"]
+"src/rwa_codex/rwa_calculator/server.py" = ["A002"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["rwa_bob", "rwa_codex"]
+strict = false
+check_untyped_defs = true
+warn_return_any = false
+warn_unused_ignores = false
+warn_redundant_casts = true
+disallow_any_generics = false
+ignore_missing_imports = true
+disable_error_code = [
+  "arg-type",
+  "assignment",
+  "no-any-return",
+  "no-untyped-call",
+  "no-untyped-def",
+  "operator",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist"]
+skips = ["B101"]
