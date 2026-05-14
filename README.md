@@ -57,9 +57,13 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard shows the current Basel 3.1 final RWA, monthly f(x, t)
-projection paths, generated-input scenario steering, attribution, recommendations and input
-package quality diagnostics.
+The Streamlit dashboard separates closed-book run-off from true forecast/optimization:
+
+- current Basel 3.1 final RWA
+- run-off projection for the existing book using monthly `f(x, t)` maturity roll-forward
+- forecast RWA using generated growth, rating migration, DLGD, FX and macro inputs
+- RWA optimization/steering with attribution and product-level recommendations
+- generated input package quality diagnostics
 
 Projection endpoint:
 

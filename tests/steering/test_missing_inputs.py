@@ -65,3 +65,29 @@ def test_loaded_input_package_projects_rows_from_generated_assumptions() -> None
     assert projected["counterparty_fcy_internal_rating"] != row["counterparty_fcy_internal_rating"]
     assert package.profitability_for(row["id"]) is not None
     assert package.best_reduction_constraint(row) is not None
+
+
+def test_generated_open_book_projection_renews_matured_exposures() -> None:
+    """Open-book forecast should use renewal assumptions instead of pure run-off."""
+    package = load_steering_input_package()
+    row = load_core_csv(PREPROD_CORE_INFO_PATH)[0]
+    row["residual_maturity"] = "0.25"
+    row["original_maturity"] = "3.00"
+
+    renewed = package.project_row(
+        row,
+        "BASE",
+        as_of_date=package.forecast_calendar[0].as_of_date,
+        projection_date=package.forecast_calendar[2].projection_date,
+    )
+    runoff = package.project_row(
+        row,
+        "BASE",
+        as_of_date=package.forecast_calendar[0].as_of_date,
+        projection_date=package.forecast_calendar[2].projection_date,
+        apply_volume=False,
+    )
+
+    assert Decimal(renewed["exposure_amount"]) > Decimal("0")
+    assert Decimal(renewed["residual_maturity"]) == Decimal("3.00")
+    assert Decimal(runoff["exposure_amount"]) == Decimal("0")

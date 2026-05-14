@@ -240,9 +240,12 @@ class SteeringInputPackage:
 
         current_exposure = parse_decimal(row["exposure_amount"])
         current_residual_maturity = parse_decimal(row["residual_maturity"], default=Decimal("0"))
+        growth: SegmentGrowthAssumption | None = None
+        if apply_volume or apply_maturity:
+            growth = self.growth_for(row, scenario_id, projection_date.year)
 
         if apply_volume:
-            growth = self.growth_for(row, scenario_id, projection_date.year)
+            assert growth is not None
             projected["exposure_amount"] = self._project_exposure(current_exposure, growth, years)
 
         if apply_fx:
@@ -255,8 +258,16 @@ class SteeringInputPackage:
         if apply_maturity:
             projected_maturity = current_residual_maturity - years
             if projected_maturity < Decimal("0"):
-                projected["residual_maturity"] = Decimal("0")
-                projected["exposure_amount"] = Decimal("0")
+                if apply_volume and growth is not None and growth.renewal_rate > Decimal("0"):
+                    maturity = renewed_maturity(row)
+                    projected["original_maturity"] = maturity
+                    projected["residual_maturity"] = maturity
+                    projected["exposure_amount"] = (
+                        parse_decimal(projected["exposure_amount"]) * growth.renewal_rate
+                    )
+                else:
+                    projected["residual_maturity"] = Decimal("0")
+                    projected["exposure_amount"] = Decimal("0")
             else:
                 projected["residual_maturity"] = projected_maturity
 
@@ -543,6 +554,20 @@ def load_steering_input_package(
         ),
         data_quality_flags=read_csv_models(root_path / "data_quality_flags.csv", DataQualityFlag),
     )
+
+
+def renewed_maturity(row: dict[str, Any]) -> Decimal:
+    """Return the maturity assigned to a renewed exposure in open-book forecasts.
+
+    Closed-book projections still mature to zero. Forecast/steering projections use generated
+    renewal assumptions, so a renewed product receives an operational maturity based on the
+    original deal maturity, bounded to the calculator's effective one-to-five-year range.
+    """
+    original = parse_decimal(
+        row.get("original_maturity") or row.get("residual_maturity"),
+        default=Decimal("1"),
+    )
+    return min(max(original, Decimal("1")), Decimal("5"))
 
 
 def read_csv_models[T: BaseModel](path: Path, model: type[T]) -> list[T]:

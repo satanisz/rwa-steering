@@ -13,7 +13,7 @@ from rwa_calculator.rwa_calculator.calculator import RwaCalculator, load_core_cs
 from rwa_projection_service.engine import RwaProjectionService
 from rwa_projection_service.schemas import ProjectionRequest
 from rwa_steering.engine import RwaSteeringPocService
-from rwa_steering.input_package import load_steering_input_package
+from rwa_steering.input_package import SteeringInputPackage, load_steering_input_package
 from rwa_steering.schemas import SteeringRequest
 
 RWA_FINAL_FIELD = "basel_3_1_rwa_final"
@@ -42,6 +42,7 @@ CORE_METADATA_COLUMNS = (
     "counterparty_fcy_internal_rating",
     "counterparty_lcy_internal_rating",
     "counterparty_credit_quality_grade",
+    "counterparty_dlgd",
 )
 
 
@@ -59,8 +60,8 @@ class CurrentRwaSnapshot:
 
 
 @dataclass(frozen=True)
-class ProjectionDashboardData:
-    """Monthly f(x, t) projection output prepared for charts and drill-down tables."""
+class RunoffProjectionDashboardData:
+    """Closed-book monthly projection prepared for run-off charts and drill-down tables."""
 
     as_of_date: date
     projected_months: int
@@ -69,6 +70,26 @@ class ProjectionDashboardData:
     aggregate: pd.DataFrame
     details: pd.DataFrame
     errors: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class ForecastProjectionDashboardData:
+    """Scenario forecast output prepared for RWA projection and driver charts.
+
+    The forecast layer creates future calculator input rows from generated assumptions,
+    recalculates RWA on those rows and exposes both projected RWA and the input-driver changes.
+    Steering then optimizes against the same scenario/date universe.
+    """
+
+    as_of_date: date
+    projection_dates: list[date]
+    scenarios: list[str]
+    selected_asset_count: int
+    aggregate: pd.DataFrame
+    details: pd.DataFrame
+    errors: pd.DataFrame
+    package_version: str | None
+    package_status: str | None
 
 
 @dataclass(frozen=True)
@@ -131,16 +152,17 @@ def current_rwa_snapshot(as_of_date: date, row_limit: int | None = None) -> Curr
     )
 
 
-def monthly_projection(
+def runoff_projection(
     as_of_date: date,
     projected_months: int = 24,
     top_n_assets: int = 100,
-) -> ProjectionDashboardData:
-    """Run the monthly projection service for the highest current-RWA assets.
+) -> RunoffProjectionDashboardData:
+    """Run the closed-book monthly projection service for the highest current-RWA assets.
 
     The projection service treats the calculator as ``f(x, t)``. It advances residual maturity
-    at each month-end and calls the calculator again, so the displayed path remains tied to the
-    same regulatory engine as the current RWA view.
+    at each month-end and calls the calculator again. It intentionally does not forecast new
+    business, ratings, DLGD or FX, so this view should be read as run-off rather than business
+    forecast.
     """
     source_rows = load_portfolio_rows()
     selected_rows = select_top_rwa_rows(
@@ -156,7 +178,7 @@ def monthly_projection(
         )
     )
     details = _projection_frame(response.projections, selected_rows)
-    return ProjectionDashboardData(
+    return RunoffProjectionDashboardData(
         as_of_date=as_of_date,
         projected_months=projected_months,
         selected_asset_count=len(selected_rows),
@@ -164,6 +186,112 @@ def monthly_projection(
         aggregate=_projection_aggregate_frame(details),
         details=details,
         errors=pd.DataFrame([error.model_dump(mode="python") for error in response.errors]),
+    )
+
+
+def monthly_projection(
+    as_of_date: date,
+    projected_months: int = 24,
+    top_n_assets: int = 100,
+) -> RunoffProjectionDashboardData:
+    """Backward-compatible wrapper for the renamed run-off projection."""
+    return runoff_projection(as_of_date, projected_months, top_n_assets)
+
+
+def forecast_projection(
+    as_of_date: date,
+    scenarios: list[str],
+    top_n_assets: int = 75,
+) -> ForecastProjectionDashboardData:
+    """Forecast input variables and recalculate RWA under generated scenarios.
+
+    This is the dashboard's primary forecast path. For each selected scenario and forecast date
+    it creates projected calculator inputs with generated growth, runoff, rating migration, DLGD
+    and FX assumptions. The projected inputs are then passed back through ``rwa_calculator`` so
+    the resulting RWA is still produced by the regulatory calculation engine.
+    """
+    package = load_steering_input_package()
+    projection_dates = _generated_projection_dates(package, as_of_date, include_as_of=False)
+    if not projection_dates:
+        raise ValueError("No generated future projection dates are available.")
+
+    current_snapshot = current_rwa_snapshot(as_of_date)
+    source_rows = load_portfolio_rows()
+    selected_rows = select_top_rwa_rows(current_snapshot.results, source_rows, top_n_assets)
+    calculator = RwaCalculator.from_files()
+    current_payload = calculator.calculate_batch(selected_rows)
+    current_details = _forecast_details_frame(
+        current_rows=selected_rows,
+        forecast_rows=selected_rows,
+        results=current_payload["results"],
+        scenario_id="ACTUAL",
+        projection_date=as_of_date,
+    )
+    current_total = _sum_column(current_details, RWA_FINAL_FIELD)
+
+    detail_frames: list[pd.DataFrame] = []
+    aggregate_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+
+    for scenario_id in scenarios:
+        baseline = current_details.copy()
+        baseline["scenario_id"] = scenario_id
+        baseline["forecast_stage"] = "Actual"
+        detail_frames.append(baseline)
+        aggregate_rows.append(
+            _forecast_aggregate_row(
+                baseline,
+                scenario_id=scenario_id,
+                projection_date=as_of_date,
+                current_rwa=current_total,
+                forecast_stage="Actual",
+            )
+        )
+
+        for projection_date in projection_dates:
+            forecast_rows = [
+                package.project_row(row, scenario_id, as_of_date, projection_date)
+                for row in selected_rows
+            ]
+            payload = calculator.calculate_batch(forecast_rows)
+            errors.extend(
+                {
+                    "scenario_id": scenario_id,
+                    "projection_date": projection_date,
+                    "id": error["id"],
+                    "messages": error["messages"],
+                }
+                for error in payload["errors"]
+            )
+            details = _forecast_details_frame(
+                current_rows=selected_rows,
+                forecast_rows=forecast_rows,
+                results=payload["results"],
+                scenario_id=scenario_id,
+                projection_date=projection_date,
+            )
+            details["forecast_stage"] = "Forecast"
+            detail_frames.append(details)
+            aggregate_rows.append(
+                _forecast_aggregate_row(
+                    details,
+                    scenario_id=scenario_id,
+                    projection_date=projection_date,
+                    current_rwa=current_total,
+                    forecast_stage="Forecast",
+                )
+            )
+
+    return ForecastProjectionDashboardData(
+        as_of_date=as_of_date,
+        projection_dates=projection_dates,
+        scenarios=list(scenarios),
+        selected_asset_count=len(selected_rows),
+        aggregate=pd.DataFrame(aggregate_rows).sort_values(["scenario_id", "projection_date"]),
+        details=pd.concat(detail_frames, ignore_index=True) if detail_frames else pd.DataFrame(),
+        errors=pd.DataFrame(errors),
+        package_version=package.manifest.version_id,
+        package_status=package.manifest.validation_status,
     )
 
 
@@ -180,13 +308,9 @@ def steering_simulation(
     recommendations. The dashboard keeps the asset count bounded so interactive reruns stay fast.
     """
     package = load_steering_input_package()
-    projection_dates = [
-        row.projection_date
-        for row in sorted(package.forecast_calendar, key=lambda item: item.projection_date)
-        if row.projection_date >= as_of_date
-    ]
+    projection_dates = _generated_projection_dates(package, as_of_date, include_as_of=False)
     if not projection_dates:
-        raise ValueError("No generated projection dates are on or after the selected as-of date.")
+        raise ValueError("No generated future projection dates are available.")
 
     source_rows = load_portfolio_rows()
     selected_rows = select_top_rwa_rows(
@@ -257,6 +381,22 @@ def select_top_rwa_rows(
     return [source_by_id[row_id] for row_id in ranked_ids if row_id in source_by_id]
 
 
+def _generated_projection_dates(
+    package: SteeringInputPackage,
+    as_of_date: date,
+    *,
+    include_as_of: bool,
+) -> list[date]:
+    """Return sorted generated forecast dates for the selected as-of date."""
+    dates = {
+        row.projection_date
+        for row in package.forecast_calendar
+        if row.projection_date >= as_of_date
+        if include_as_of or row.projection_date > as_of_date
+    }
+    return sorted(dates)
+
+
 def _calculator_results_frame(
     source_rows: list[dict[str, Any]],
     results: list[dict[str, Any]],
@@ -267,7 +407,7 @@ def _calculator_results_frame(
     metadata = pd.DataFrame(source_rows)[list(CORE_METADATA_COLUMNS)]
     output = pd.DataFrame(results)
     frame = metadata.merge(output, on="id", how="inner")
-    _coerce_numeric_columns(frame, ("exposure_amount", "residual_maturity"))
+    _coerce_numeric_columns(frame, ("exposure_amount", "residual_maturity", "counterparty_dlgd"))
     _coerce_numeric_columns(frame, (*RWA_FIELDS, *RISK_WEIGHT_FIELDS))
     frame["rwa_density"] = _safe_ratio(frame[RWA_FINAL_FIELD], frame["exposure_amount"])
     return frame
@@ -370,6 +510,87 @@ def _projection_aggregate_frame(details: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def _forecast_details_frame(
+    current_rows: list[dict[str, Any]],
+    forecast_rows: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+    scenario_id: str,
+    projection_date: date,
+) -> pd.DataFrame:
+    """Build one scenario/date frame combining forecasted inputs and recalculated RWA."""
+    if not results:
+        return pd.DataFrame()
+
+    forecast = _calculator_results_frame(forecast_rows, results)
+    current = pd.DataFrame(current_rows)[
+        [
+            "id",
+            "exposure_amount",
+            "residual_maturity",
+            "counterparty_fcy_internal_rating",
+            "counterparty_dlgd",
+        ]
+    ].rename(
+        columns={
+            "exposure_amount": "current_exposure_amount",
+            "residual_maturity": "current_residual_maturity",
+            "counterparty_fcy_internal_rating": "current_rating",
+            "counterparty_dlgd": "current_dlgd",
+        }
+    )
+    _coerce_numeric_columns(
+        current,
+        ("current_exposure_amount", "current_residual_maturity", "current_dlgd"),
+    )
+
+    frame = forecast.rename(
+        columns={
+            "exposure_amount": "forecast_exposure_amount",
+            "residual_maturity": "forecast_residual_maturity",
+            "counterparty_fcy_internal_rating": "forecast_rating",
+            "counterparty_dlgd": "forecast_dlgd",
+        }
+    ).merge(current, on="id", how="left")
+    frame["scenario_id"] = scenario_id
+    frame["projection_date"] = pd.to_datetime(projection_date)
+    frame["projected_rwa"] = frame[RWA_FINAL_FIELD]
+    frame["exposure_delta"] = frame["forecast_exposure_amount"] - frame["current_exposure_amount"]
+    frame["dlgd_delta"] = frame["forecast_dlgd"] - frame["current_dlgd"]
+    frame["rating_changed"] = frame["forecast_rating"] != frame["current_rating"]
+    frame["matured_asset"] = frame["forecast_exposure_amount"] <= 0
+    return frame
+
+
+def _forecast_aggregate_row(
+    details: pd.DataFrame,
+    scenario_id: str,
+    projection_date: date,
+    current_rwa: float,
+    forecast_stage: str,
+) -> dict[str, Any]:
+    """Aggregate forecasted inputs and recalculated RWA for one scenario/date."""
+    projected_rwa = _sum_column(details, RWA_FINAL_FIELD)
+    current_exposure = _sum_column(details, "current_exposure_amount")
+    forecast_exposure = _sum_column(details, "forecast_exposure_amount")
+    return {
+        "scenario_id": scenario_id,
+        "projection_date": pd.to_datetime(projection_date),
+        "forecast_stage": forecast_stage,
+        "current_rwa": current_rwa,
+        "projected_rwa": projected_rwa,
+        "rwa_delta": projected_rwa - current_rwa,
+        "rwa_delta_pct": ((projected_rwa - current_rwa) / current_rwa if current_rwa else None),
+        "current_exposure_amount": current_exposure,
+        "forecast_exposure_amount": forecast_exposure,
+        "exposure_delta": forecast_exposure - current_exposure,
+        "avg_forecast_dlgd": _mean_column(details, "forecast_dlgd"),
+        "avg_current_dlgd": _mean_column(details, "current_dlgd"),
+        "rating_migration_count": int(details["rating_changed"].sum()) if not details.empty else 0,
+        "matured_asset_count": int(details["matured_asset"].sum()) if not details.empty else 0,
+        "asset_count": len(details),
+    }
+
+
 def _models_frame(models: list[Any]) -> pd.DataFrame:
     """Convert Pydantic response models to a chart-friendly DataFrame."""
     frame = pd.DataFrame([model.model_dump(mode="python") for model in models])
@@ -402,3 +623,13 @@ def _decimal_to_float(value: Any) -> float | None:
 def _safe_ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     """Return element-wise ``numerator / denominator`` with zero denominators blanked."""
     return numerator.div(denominator.where(denominator != 0))
+
+
+def _sum_column(frame: pd.DataFrame, column: str) -> float:
+    """Return a numeric DataFrame column sum as float, preserving empty frames as zero."""
+    return float(frame[column].sum()) if column in frame.columns and not frame.empty else 0.0
+
+
+def _mean_column(frame: pd.DataFrame, column: str) -> float | None:
+    """Return a numeric DataFrame column mean or ``None`` for empty frames."""
+    return float(frame[column].mean()) if column in frame.columns and not frame.empty else None
