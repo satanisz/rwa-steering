@@ -1,0 +1,66 @@
+{
+  "package_name": "rwa_steering_missing_inputs_seed",
+  "version_id": "2026Q2_HACKATHON_SEED_V1",
+  "generated_on": "2026-05-15",
+  "random_seed": 20260515,
+  "production_ready": false,
+  "source_files": [
+    "src/rwa_calculator/preprod_core_info_1000.csv",
+    "src/rwa_calculator/preprod_country_info.csv",
+    "src/rwa_calculator/nccr_mapping.csv",
+    "src/rwa_calculator/reference_data/manifest.json"
+  ],
+  "generated_files": [
+    "scenario_definitions.csv",
+    "forecast_calendar.csv",
+    "segment_growth_assumptions.csv",
+    "rating_migration_matrix.csv",
+    "dlgd_scenario_assumptions.csv",
+    "fx_scenario_rates.csv",
+    "macro_regime_indicators.csv",
+    "regulatory_overlay_selection.csv",
+    "profitability_inputs.csv",
+    "steering_action_constraints.csv",
+    "portfolio_strategy_limits.csv",
+    "data_quality_flags.csv",
+    "README.md",
+    "validation_report.json"
+  ],
+  "row_counts": {
+    "scenario_definitions.csv": 4,
+    "forecast_calendar.csv": 6,
+    "segment_growth_assumptions.csv": 1660,
+    "rating_migration_matrix.csv": 70560,
+    "dlgd_scenario_assumptions.csv": 280,
+    "fx_scenario_rates.csv": 144,
+    "macro_regime_indicators.csv": 24,
+    "regulatory_overlay_selection.csv": 3,
+    "profitability_inputs.csv": 1000,
+    "steering_action_constraints.csv": 210,
+    "portfolio_strategy_limits.csv": 280,
+    "data_quality_flags.csv": 120
+  },
+  "file_sha256": {
+    "scenario_definitions.csv": "78162a736689df0c8a59353c27bd51dc2aa0ed6a8316bd3ff0e9823851dc16e0",
+    "forecast_calendar.csv": "a596a236ba7b00780f20ef88025bca5a3b9f8dc50019cecb67aabb064c1b0d5c",
+    "segment_growth_assumptions.csv": "8e39adb53aa7a734e5f7b995dea8fdeb116c72c88e40e1d1009e3a075601eea1",
+    "rating_migration_matrix.csv": "8d5e5642f7ad6d104e4648b029904aed8380cd4e5d48a25db0c05957a7682507",
+    "dlgd_scenario_assumptions.csv": "6232545a3f82c6a9d566edb20fde5d3b7d9314ca1e5ab861e740c79c060edbab",
+    "fx_scenario_rates.csv": "a97d337e396848891784cee4b3e9fb3c8e8fdf711f5214cb91b4a37bc122a089",
+    "macro_regime_indicators.csv": "f700ec5cc103849cbb48609f00cb275ef5138606864f9b66fb91b8c8cc914470",
+    "regulatory_overlay_selection.csv": "56ee373eae1829e3d6fbff2b0c86d0e14f31af0199ba0ed66be5f0404777d53d",
+    "profitability_inputs.csv": "5fa8f52a53c0670b78401b212c5a8a1bf822daacd51723a398df56629c21b0e2",
+    "steering_action_constraints.csv": "ab6214e3b12d09a9613825034aad9e883fc13d67c3471a6637b9f05e6dea69c3",
+    "portfolio_strategy_limits.csv": "fe38e55f66a7a4b6d596704aebfda3a96792f7e2d38c565deaadec6173540a49",
+    "data_quality_flags.csv": "a4011aeed620b81d2d97cfdf7716b78867fbf83cfd72729a34e75ac49ee51ad5",
+    "README.md": "a70b9c1fb20a5ab2969d6502c4fdf95271d4b73a5a6fc7c7e3b9133d22884334",
+    "validation_report.json": "59b72d593d268b61ad63a15eeed4325d6740c2cbea012fb039a5bda34dff518d"
+  },
+  "validation_status": "PASSED",
+  "known_limitations": [
+    "Synthetic hackathon seed, not production customer or market data.",
+    "FX rates and macro regimes are deterministic scenario assumptions.",
+    "Profitability inputs are proxy values and require finance-system replacement.",
+    "Rating migration matrices are simple auditable assumptions, not calibrated models."
+  ]
+}

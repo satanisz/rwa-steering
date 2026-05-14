@@ -203,7 +203,8 @@ def build_country_rows() -> list[dict[str, str]]:
 
 
 def build_core_rows(nccr_mapping: dict[str, dict[str, Decimal]]) -> list[dict[str, str]]:
-    rng = random.Random(SEED)
+    # Deterministic non-production synthetic data; not used for secrets or security.
+    rng = random.Random(SEED)  # nosec B311
     ratings = sorted(nccr_mapping.keys(), key=lambda item: Decimal(item))
     rows: list[dict[str, str]] = []
     for idx in range(1, ROW_COUNT + 1):

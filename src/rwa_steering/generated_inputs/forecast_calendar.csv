@@ -1,0 +1,7 @@
+as_of_date,projection_date,projection_year,projection_quarter,horizon_months,is_year_end,regulatory_year
+2026-05-15,2026-05-15,2026,2,0,false,2026
+2026-05-15,2026-12-31,2026,4,7,true,2026
+2026-05-15,2027-12-31,2027,4,19,true,2027
+2026-05-15,2028-12-31,2028,4,31,true,2028
+2026-05-15,2029-12-31,2029,4,43,true,2029
+2026-05-15,2030-12-31,2030,4,55,true,2030

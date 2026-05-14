@@ -1,0 +1,27 @@
+{
+  "validation_status": "PASSED",
+  "validated_on": "2026-05-15",
+  "quality_gates": [
+    "all_expected_files_present",
+    "all_rows_pydantic_validated",
+    "scenario_references_consistent",
+    "projection_dates_consistent",
+    "rating_migration_probabilities_sum_to_one",
+    "fx_rates_positive",
+    "asset_references_consistent"
+  ],
+  "row_counts": {
+    "scenario_definitions.csv": 4,
+    "forecast_calendar.csv": 6,
+    "segment_growth_assumptions.csv": 1660,
+    "rating_migration_matrix.csv": 70560,
+    "dlgd_scenario_assumptions.csv": 280,
+    "fx_scenario_rates.csv": 144,
+    "macro_regime_indicators.csv": 24,
+    "regulatory_overlay_selection.csv": 3,
+    "profitability_inputs.csv": 1000,
+    "steering_action_constraints.csv": 210,
+    "portfolio_strategy_limits.csv": 280,
+    "data_quality_flags.csv": 120
+  }
+}
