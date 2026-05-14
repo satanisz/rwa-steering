@@ -19,12 +19,14 @@ dependencies = [
     "pydantic-settings>=2.7,<3.0",
     "python-multipart>=0.0.20,<1.0",
     "scipy>=1.14,<2.0",
+    "streamlit>=1.40,<2.0",
     "uvicorn[standard]>=0.34,<1.0",
 ]
 
 [project.scripts]
 rwa-calculator = "rwa_calculator.rwa_backend:main"
 rwa-generate-missing-inputs = "rwa_steering.missing_inputs:main"
+rwa-dashboard = "rwa_dashboard.cli:main"
 rwa-projection = "rwa_projection_service.cli:main"
 rwa-steering = "rwa_steering.cli:main"
 
@@ -50,6 +52,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 rwa_calculator = ["*.csv", "preprod_dataset_summary.json", "*.md", "py.typed", "reference_data/**/*.json", "reference_data/**/*.md"]
+rwa_dashboard = ["py.typed"]
 rwa_projection_service = ["py.typed"]
 rwa_steering = ["py.typed", "generated_inputs/*"]
 
@@ -128,7 +131,7 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["rwa_calculator", "rwa_projection_service", "rwa_steering"]
+packages = ["rwa_calculator", "rwa_dashboard", "rwa_projection_service", "rwa_steering"]
 strict = false
 check_untyped_defs = true
 warn_return_any = false

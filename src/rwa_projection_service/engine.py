@@ -31,6 +31,9 @@ PROJECTION_VALUE_FIELDS = (
     "basel_3_1_rw_standardised",
     "basel_3_1_rwa_standardised",
     "basel_3_1_ro_rw_standardised",
+    "basel_3_1_rw_final",
+    "basel_3_1_rwa_final",
+    "basel_3_1_ro_rw_final",
 )
 
 

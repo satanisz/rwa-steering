@@ -84,6 +84,9 @@ class OutputProjection(ProjectionModel):
     basel_3_1_rw_standardised: Decimal | None = Field(default=None, ge=Decimal("0"))
     basel_3_1_rwa_standardised: Decimal | None = Field(default=None, ge=Decimal("0"))
     basel_3_1_ro_rw_standardised: Decimal | None = Field(default=None, ge=Decimal("0"))
+    basel_3_1_rw_final: Decimal | None = Field(default=None, ge=Decimal("0"))
+    basel_3_1_rwa_final: Decimal | None = Field(default=None, ge=Decimal("0"))
+    basel_3_1_ro_rw_final: Decimal | None = Field(default=None, ge=Decimal("0"))
 
 
 class ProjectionResponse(ProjectionModel):

@@ -6,6 +6,7 @@ Python `src/` layout repository for Basel III RWA calculation, projection and st
 - `src/rwa_projection_service` - projection service using `rwa_calculator` as `f(x, t)`.
 - `src/rwa_steering` - regime-aware steering service with generated scenario inputs,
   attribution and recommendations.
+- `src/rwa_dashboard` - Streamlit dashboard over the calculator, projection and steering services.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
 `pytest` for tests, `ruff` for linting/formatting, and coverage/security tooling suitable for
@@ -45,9 +46,20 @@ uv build
 uv run rwa-calculator calculate --out build/calculator/results.json --trace
 uv run rwa-calculator serve-fastapi --host 127.0.0.1 --port 8000
 uv run rwa-generate-missing-inputs
+uv run rwa-dashboard --host 127.0.0.1 --port 8501
 uv run rwa-projection --host 127.0.0.1 --port 8010
 uv run rwa-steering --host 127.0.0.1 --port 8020
 ```
+
+Dashboard:
+
+```text
+http://127.0.0.1:8501
+```
+
+The Streamlit dashboard shows the current Basel 3.1 final RWA, monthly f(x, t)
+projection paths, generated-input scenario steering, attribution, recommendations and input
+package quality diagnostics.
 
 Projection endpoint:
 

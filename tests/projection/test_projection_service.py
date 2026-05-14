@@ -39,6 +39,7 @@ def test_projection_service_calculates_t0_and_month_end_projection_points() -> N
     assert response.summary.output_successful_projection_records == 3
     assert response.summary.output_failure_records == 0
     assert response.results[0]["id"] == row["id"]
+    assert response.projections[0].basel_3_1_rwa_final is not None
     assert [projection.projection_date for projection in response.projections] == (
         response.projection_dates
     )
@@ -121,6 +122,7 @@ def test_projection_service_calculates_maturity_zero_then_projects_zero_after_ma
     assert response.projections[1].projection_date == date(2026, 1, 31)
     assert response.projections[1].basel_3_0_rwa == Decimal("0")
     assert response.projections[1].basel_3_1_rwa_foundation == Decimal("0")
+    assert response.projections[1].basel_3_1_rwa_final == Decimal("0")
 
 
 def test_projection_service_returns_null_projection_values_for_missing_maturity() -> None:
