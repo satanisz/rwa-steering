@@ -68,6 +68,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
         """Provide the app-scoped calculator to request handlers."""
         return app.state.calculator
 
+    @app.get("/v1/health", response_model=HealthResponse, tags=["service"])
     @app.get("/health", response_model=HealthResponse, tags=["service"])
     def health() -> HealthResponse:
         """Return liveness and dependency metadata for monitoring."""
@@ -81,6 +82,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
             reference_data_production_ready=app.state.reference_data_package.production_ready,
         )
 
+    @app.get("/v1/readiness", tags=["service"])
     @app.get("/readiness", tags=["service"])
     def readiness() -> dict[str, str]:
         """Verify that required reference-data files are available on disk."""
@@ -122,6 +124,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
         """Expose country reference records loaded into the calculator."""
         return {code: asdict(country) for code, country in calc.countries.items()}
 
+    @app.post("/v1/rwa/calculate", response_model=CalculateResponse, tags=["calculation"])
     @app.post("/rwa/calculate", response_model=CalculateResponse, tags=["calculation"])
     def calculate(
         request: CalculateRequest,
@@ -155,6 +158,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
             **payload,
         )
 
+    @app.post("/v1/rwa/calculate/csv", response_model=CalculateResponse, tags=["calculation"])
     @app.post("/rwa/calculate/csv", response_model=CalculateResponse, tags=["calculation"])
     async def calculate_csv(
         core_file: UploadFile = File(description="CoreInfo CSV"),

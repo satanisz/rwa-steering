@@ -52,6 +52,19 @@ class FastApiMicroserviceTests(unittest.TestCase):
         self.assertEqual(payload["results"][0]["id"], row["id"])
         self.assertTrue(payload["results"][0]["trace"])
 
+    def test_v1_json_calculation_contract(self) -> None:
+        with PREPROD_CORE_INFO_PATH.open(newline="", encoding="utf-8") as handle:
+            row = next(csv.DictReader(handle))
+
+        response = self.client.post(
+            "/v1/rwa/calculate",
+            json={"include_trace": False, "core_info": [row]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["calculation_engine_version"], "rwa-alpha-0.2.0")
+        self.assertEqual(response.json()["summary"]["output_successful_records"], 1)
+
     def test_csv_calculation_endpoint_uses_batch_validation(self) -> None:
         with PREPROD_CORE_INFO_PATH.open("rb") as core:
             response = self.client.post(

@@ -36,6 +36,7 @@ def create_app(settings: ProjectionServiceSettings | None = None) -> FastAPI:
     app.state.settings = resolved_settings
     app.state.service = service
 
+    @app.get("/v1/health", tags=["service"])
     @app.get("/health", tags=["service"])
     def health() -> dict[str, str]:
         """Return lightweight liveness metadata for orchestration probes."""
@@ -45,6 +46,7 @@ def create_app(settings: ProjectionServiceSettings | None = None) -> FastAPI:
             "projection_engine_version": PROJECTION_ENGINE_VERSION,
         }
 
+    @app.post("/v1/projections/calculate", response_model=ProjectionResponse, tags=["projection"])
     @app.post("/projections/calculate", response_model=ProjectionResponse, tags=["projection"])
     def calculate(request: ProjectionRequest) -> ProjectionResponse:
         """Run monthly RWA projection for the supplied portfolio slice."""

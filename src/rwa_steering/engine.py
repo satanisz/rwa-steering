@@ -8,7 +8,9 @@ from typing import Any
 from rwa_calculator.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
 from rwa_calculator.rwa_calculator.calculator import RwaCalculator
 
-from .scenarios import ScenarioAssumption, get_scenario
+from .errors import SteeringDomainError
+from .input_package import SteeringInputPackage, load_steering_input_package
+from .scenarios import ScenarioAssumption
 from .schemas import (
     AttributionRow,
     ProjectionRow,
@@ -17,7 +19,7 @@ from .schemas import (
     SteeringRequest,
     SteeringResponse,
 )
-from .transformations import parse_decimal, project_row
+from .transformations import parse_decimal
 
 RWA_FIELD = "basel_3_1_rwa_final"
 METHODOLOGY = (
@@ -46,15 +48,25 @@ class RwaSteeringPocService:
         self,
         nccr_mapping_path: str | Path = NCCR_MAPPING_PATH,
         country_info_path: str | Path = PREPROD_COUNTRY_INFO_PATH,
+        input_package: SteeringInputPackage | None = None,
+        generated_inputs_root: str | Path | None = None,
     ) -> None:
         """Initialize the service with the calculator reference files.
 
         Args:
             nccr_mapping_path: Path to the NCCR/CRR mapping used by the calculator.
             country_info_path: Path to country reference data used by the calculator.
+            input_package: Optional preloaded generated-input package for tests or custom runs.
+            generated_inputs_root: Optional root containing the generated-input package.
         """
 
         self.calculator = RwaCalculator.from_files(nccr_mapping_path, country_info_path)
+        if input_package is not None:
+            self.input_package = input_package
+        elif generated_inputs_root is not None:
+            self.input_package = load_steering_input_package(generated_inputs_root)
+        else:
+            self.input_package = load_steering_input_package()
 
     def run(self, request: SteeringRequest) -> SteeringResponse:
         """Execute a full steering run for all requested scenarios and dates.
@@ -68,7 +80,11 @@ class RwaSteeringPocService:
             sequential attribution and ranked recommendations.
         """
 
+        self.input_package.ensure_jurisdiction(request.jurisdiction)
+
         current_payload = self.calculator.calculate_batch(request.core_info)
+        if current_payload["errors"]:
+            raise SteeringDomainError.from_calculator_errors(current_payload["errors"])
         current_by_id = results_by_id(current_payload["results"])
         current_total = portfolio_rwa(current_payload["results"])
 
@@ -78,13 +94,21 @@ class RwaSteeringPocService:
         recommendations: list[RecommendationRow] = []
 
         for scenario_id in request.scenarios:
-            scenario = get_scenario(str(scenario_id))
             for projection_date in request.projection_dates:
+                scenario = self.input_package.scenario_assumption(str(scenario_id), projection_date)
                 projected_rows = [
-                    project_row(row, scenario, request.as_of_date, projection_date)
+                    self.input_package.project_row(
+                        row, str(scenario_id), request.as_of_date, projection_date
+                    )
                     for row in request.core_info
                 ]
                 projected_payload = self.calculator.calculate_batch(projected_rows)
+                if projected_payload["errors"]:
+                    raise SteeringDomainError.from_calculator_errors(
+                        projected_payload["errors"],
+                        scenario_id=str(scenario_id),
+                        projection_date=projection_date.isoformat(),
+                    )
                 projected_by_id = results_by_id(projected_payload["results"])
                 projected_total = portfolio_rwa(projected_payload["results"])
 
@@ -117,6 +141,7 @@ class RwaSteeringPocService:
                         projection_date=projection_date,
                         projected_rows=projected_rows,
                         projected_by_id=projected_by_id,
+                        current_rows=request.core_info,
                         top_n=request.top_n_recommendations,
                     )
                 )
@@ -135,10 +160,12 @@ class RwaSteeringPocService:
             attributions=attributions,
             recommendations=recommendations,
             limitations=[
-                "PoC uses deterministic scenario assumptions, not a trained LSTM/GMM pipeline.",
-                "Regulatory calendar impact is exposed as a placeholder delta in this first PoC.",
+                "PoC uses validated synthetic generated inputs, not production customer data.",
+                "Scenario assumptions are deterministic seed inputs, not calibrated ML forecasts.",
                 "Recommendations are decision-support proposals and require risk/finance review.",
             ],
+            input_package_version=self.input_package.manifest.version_id,
+            input_package_validation_status=self.input_package.manifest.validation_status,
         )
 
     def _summary(
@@ -278,9 +305,9 @@ class RwaSteeringPocService:
         """
 
         projected_rows = [
-            project_row(
+            self.input_package.project_row(
                 row,
-                scenario,
+                scenario.scenario_id,
                 request.as_of_date,
                 projection_date,
                 apply_volume=driver_flag.get("apply_volume", False),
@@ -302,17 +329,18 @@ class RwaSteeringPocService:
         projection_date: date,
         projected_rows: list[dict[str, Any]],
         projected_by_id: dict[str, dict[str, Any]],
+        current_rows: list[dict[str, Any]],
         top_n: int,
     ) -> list[RecommendationRow]:
         """Generate and score first-version steering recommendations.
 
-        The current PoC simulates one action: ``REDUCE_EXPOSURE`` via a 20% exposure reduction.
-        Candidate assets are the top projected RWA contributors. The score combines estimated
-        RWA saving, the scenario risk-budget multiplier, a simple business-cost proxy and
-        implementation complexity. This is decision support, not automated portfolio action.
+        Candidate assets are the top projected RWA contributors. The selected action, maximum
+        reduction, business cost and implementation complexity come from generated steering
+        constraints and profitability inputs. This is decision support, not automated action.
         """
 
         candidates: list[RecommendationRow] = []
+        current_by_id = {str(row["id"]): row for row in current_rows}
         ranked_rows = sorted(
             projected_rows,
             key=lambda row: parse_decimal(projected_by_id[str(row["id"])][RWA_FIELD]),
@@ -323,13 +351,42 @@ class RwaSteeringPocService:
             before = parse_decimal(projected_by_id[str(row["id"])][RWA_FIELD])
             if before <= Decimal("0"):
                 continue
+            current_row = current_by_id[str(row["id"])]
+            constraint = self.input_package.best_reduction_constraint(current_row)
+            if constraint is None or constraint.max_exposure_reduction_pct <= Decimal("0"):
+                continue
+            reduction_pct = min(Decimal("0.50"), constraint.max_exposure_reduction_pct)
             action_row = dict(row)
-            action_row["exposure_amount"] = parse_decimal(row["exposure_amount"]) * Decimal("0.80")
-            after = portfolio_rwa(self.calculator.calculate_batch([action_row])["results"])
+            action_row["exposure_amount"] = parse_decimal(row["exposure_amount"]) * (
+                Decimal("1") - reduction_pct
+            )
+            action_payload = self.calculator.calculate_batch([action_row])
+            if action_payload["errors"]:
+                raise SteeringDomainError.from_calculator_errors(
+                    action_payload["errors"],
+                    scenario_id=scenario.scenario_id,
+                    projection_date=projection_date.isoformat(),
+                )
+            after = portfolio_rwa(action_payload["results"])
             saving = max(Decimal("0"), before - after)
-            cost = parse_decimal(row["exposure_amount"]) * Decimal("0.005")
-            complexity = 2 if row["bond_or_loan_flag"] == "L" else 3
-            score = saving * scenario.risk_budget_multiplier - cost * Decimal("0.10") - complexity
+            profitability = self.input_package.profitability_for(str(row["id"]))
+            relationship_penalty = (
+                Decimal(
+                    profitability.relationship_value_score
+                    + profitability.strategic_importance_score
+                )
+                / Decimal("200")
+                if profitability is not None
+                else Decimal("0.50")
+            )
+            cost = parse_decimal(row["exposure_amount"]) * constraint.business_cost_factor
+            complexity = constraint.implementation_complexity
+            score = (
+                saving * scenario.risk_budget_multiplier
+                - cost * Decimal("0.10")
+                - Decimal(complexity)
+                - relationship_penalty * Decimal("1000")
+            )
             candidates.append(
                 RecommendationRow(
                     scenario_id=scenario.scenario_id,
@@ -338,15 +395,18 @@ class RwaSteeringPocService:
                     counterparty_gid=str(row["counterparty_gid"]),
                     entity_class=str(row["entity_class"]),
                     sub_class=str(row["sub_class"]),
-                    recommended_action="REDUCE_EXPOSURE",
-                    action_description="Simulate 20% exposure reduction or sell-down.",
+                    recommended_action=constraint.action_code,
+                    action_description=(
+                        f"Simulate {reduction_pct:.0%} exposure reduction under generated "
+                        f"{constraint.action_code} constraint."
+                    ),
                     rwa_before_action=before,
                     rwa_after_action=after,
                     estimated_rwa_saving=saving,
                     estimated_business_cost=cost,
                     implementation_complexity=complexity,
                     recommendation_score=score,
-                    reason_code="TOP_PROJECTED_RWA_CONTRIBUTOR",
+                    reason_code="CONSTRAINT_AWARE_TOP_PROJECTED_RWA_CONTRIBUTOR",
                 )
             )
 

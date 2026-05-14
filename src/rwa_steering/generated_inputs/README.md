@@ -11,7 +11,7 @@ constraints, strategy limits and data quality flags.
 Regenerate with:
 
 ```bash
-uv run python -m rwa_steering.missing_inputs
+uv run rwa-generate-missing-inputs
 ```
 
 The data is suitable for hackathon demos and automated tests only. It must not be

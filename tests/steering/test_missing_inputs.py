@@ -3,6 +3,9 @@ from __future__ import annotations
 import csv
 from decimal import Decimal
 
+from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
+from rwa_calculator.rwa_calculator.calculator import load_core_csv
+from rwa_steering.input_package import load_steering_input_package
 from rwa_steering.missing_inputs import GENERATED_FILE_ORDER, generate_missing_inputs
 
 
@@ -41,3 +44,24 @@ def test_rating_migration_probabilities_sum_to_one(tmp_path) -> None:
 
     assert totals
     assert set(totals.values()) == {Decimal("1.000000")}
+
+
+def test_loaded_input_package_projects_rows_from_generated_assumptions() -> None:
+    """Runtime package loader should expose generated assumptions to steering code."""
+    package = load_steering_input_package()
+    row = load_core_csv(PREPROD_CORE_INFO_PATH)[0]
+
+    projected = package.project_row(
+        row,
+        "STRESS",
+        as_of_date=package.forecast_calendar[0].as_of_date,
+        projection_date=package.forecast_calendar[2].projection_date,
+    )
+    scenario = package.scenario_assumption("STRESS", package.forecast_calendar[2].projection_date)
+
+    assert package.manifest.validation_status == "PASSED"
+    assert scenario.regime_label == "CREDIT_STRESS"
+    assert Decimal(projected["exposure_amount"]) >= Decimal("0")
+    assert projected["counterparty_fcy_internal_rating"] != row["counterparty_fcy_internal_rating"]
+    assert package.profitability_for(row["id"]) is not None
+    assert package.best_reduction_constraint(row) is not None

@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v5
@@ -40,5 +40,21 @@ jobs:
       - name: Type check
         run: uv run mypy
 
-      - name: Audit
-        run: uv run pip-audit
+      - name: Security
+        run: |
+          uv run bandit -q -c pyproject.toml -r src
+          uv run pip-audit
+
+      - name: Generated input package is reproducible
+        run: |
+          uv run rwa-generate-missing-inputs
+          git diff --exit-code -- src/rwa_steering/generated_inputs
+
+      - name: Build package
+        run: uv build
+
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml

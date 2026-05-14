@@ -97,3 +97,38 @@ def test_steering_fastapi_endpoint() -> None:
     assert payload["jurisdiction"] == "EU_CRR3_EBA"
     assert len(payload["summaries"]) == 1
     assert len(payload["projections"]) == 2
+
+
+def test_steering_v1_contract_and_structured_error() -> None:
+    rows = load_rows(2)
+    client = TestClient(create_app())
+
+    health = client.get("/v1/health")
+    assert health.status_code == 200
+    assert health.json()["input_package_validation_status"] == "PASSED"
+
+    response = client.post(
+        "/v1/steering/run",
+        json={
+            "as_of_date": "2026-01-01",
+            "projection_dates": ["2026-12-31"],
+            "scenarios": ["BASE"],
+            "jurisdiction": "NO_SUCH_OVERLAY",
+            "core_info": rows,
+        },
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["api_version"] == "v1"
+    assert payload["error"]["code"] == "UNKNOWN_JURISDICTION_OVERLAY"
+    assert payload["error"]["field_path"] == "jurisdiction"
+
+
+def test_steering_openapi_exposes_versioned_endpoint() -> None:
+    client = TestClient(create_app())
+
+    openapi = client.get("/openapi.json").json()
+
+    assert "/v1/steering/run" in openapi["paths"]
+    assert "/steering/run" in openapi["paths"]

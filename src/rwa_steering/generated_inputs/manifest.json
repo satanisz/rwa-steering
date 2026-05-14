@@ -53,7 +53,7 @@
     "steering_action_constraints.csv": "ab6214e3b12d09a9613825034aad9e883fc13d67c3471a6637b9f05e6dea69c3",
     "portfolio_strategy_limits.csv": "fe38e55f66a7a4b6d596704aebfda3a96792f7e2d38c565deaadec6173540a49",
     "data_quality_flags.csv": "a4011aeed620b81d2d97cfdf7716b78867fbf83cfd72729a34e75ac49ee51ad5",
-    "README.md": "a70b9c1fb20a5ab2969d6502c4fdf95271d4b73a5a6fc7c7e3b9133d22884334",
+    "README.md": "279a18ddfcd96a803cdad0465b1af8d35f8df40756febab9692d2d6618b63ef8",
     "validation_report.json": "59b72d593d268b61ad63a15eeed4325d6740c2cbea012fb039a5bda34dff518d"
   },
   "validation_status": "PASSED",

@@ -155,3 +155,22 @@ def test_projection_fastapi_endpoint() -> None:
     assert payload["summary"]["output_successful_records"] == 1
     assert len(payload["projections"]) == 2
     assert payload["projection_dates"] == ["2026-01-01", "2026-01-31"]
+
+
+def test_projection_v1_fastapi_contract() -> None:
+    row = load_sample_row()
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/v1/projections/calculate",
+        json={
+            "run_date": "2026-01-01",
+            "projected_months": 1,
+            "core_info": [row],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["projection_engine_version"] == "rwa-projection-alpha-0.1.0"
+    assert payload["summary"]["output_successful_projection_records"] == 2

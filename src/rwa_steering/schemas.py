@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 
 class SteeringModel(BaseModel):
@@ -47,6 +47,15 @@ class SteeringRequest(SteeringModel):
     jurisdiction: str = "EU_CRR3_EBA"
     core_info: list[dict[str, Any]] = Field(min_length=1)
     top_n_recommendations: int = Field(default=10, ge=1, le=100)
+    request_id: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_projection_dates(self) -> SteeringRequest:
+        """Require projection dates to be on or after the request as-of date."""
+        invalid_dates = [item for item in self.projection_dates if item < self.as_of_date]
+        if invalid_dates:
+            raise ValueError("projection_dates cannot be before as_of_date")
+        return self
 
 
 class ScenarioRunSummary(SteeringModel):
@@ -141,6 +150,7 @@ class RecommendationRow(SteeringModel):
 class SteeringResponse(SteeringModel):
     """Full response returned by the steering PoC endpoint."""
 
+    api_version: str = "v1"
     methodology: str
     jurisdiction: str
     summaries: list[ScenarioRunSummary]
@@ -148,3 +158,23 @@ class SteeringResponse(SteeringModel):
     attributions: list[AttributionRow]
     recommendations: list[RecommendationRow]
     limitations: list[str]
+    input_package_version: str | None = None
+    input_package_validation_status: str | None = None
+
+
+class ApiErrorDetail(SteeringModel):
+    """Stable machine-readable error detail for API clients."""
+
+    code: str
+    message: str
+    field_path: str | None = None
+    severity: str = "ERROR"
+    remediation: str | None = None
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiErrorResponse(SteeringModel):
+    """Versioned error response returned by steering API exception handlers."""
+
+    api_version: str = "v1"
+    error: ApiErrorDetail
