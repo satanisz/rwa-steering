@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class StrictRwaModel(BaseModel):
+    """Shared strict Pydantic baseline for all public RWA data contracts."""
+
     model_config = ConfigDict(
         extra="forbid",
         validate_assignment=True,
@@ -48,6 +50,8 @@ NCCR_RATING_GRADES = (
 
 
 class ExternalRating(str, Enum):
+    """External long-term rating symbols accepted by calculator contracts."""
+
     AAA = "AAA"
     AA_PLUS = "AA+"
     AA = "AA"
@@ -72,6 +76,8 @@ class ExternalRating(str, Enum):
 
 
 class EntityClass(str, Enum):
+    """Exposure counterparty classes supported by the current RWA methodology."""
+
     SOV = "SOV"
     CORP = "CORP"
     BANK = "BANK"
@@ -83,6 +89,8 @@ class EntityClass(str, Enum):
 
 
 class ExposureSubClass(str, Enum):
+    """Granular exposure subclasses used by standardised and IRB branching."""
+
     GENERAL = "GENERAL"
     SOVEREIGN = "SOVEREIGN"
     BANK = "BANK"
@@ -99,18 +107,22 @@ class ExposureSubClass(str, Enum):
 
 
 class CounterpartyCreditQualityGrade(str, Enum):
+    """Fallback credit quality grades used when bank ECRA ratings are unavailable."""
+
     INVESTMENT_GRADE = "INVESTMENT_GRADE"
     HIGH_YIELD = "HIGH_YIELD"
     NOT_RATED = "NOT_RATED"
 
 
 def _normalise_empty(value: Any) -> Any:
+    """Map empty strings from CSV/form inputs to `None` before validation."""
     if value == "":
         return None
     return value
 
 
 def _normalise_rating_grade(value: Any) -> str | None:
+    """Normalise NCCR grades from CSV-like values and reject unknown grades."""
     value = _normalise_empty(value)
     if value is None:
         return None
@@ -129,6 +141,7 @@ def _normalise_rating_grade(value: Any) -> str | None:
 
 
 def _normalise_decimal(value: Any) -> Any:
+    """Prepare decimal inputs, including percentage strings, for Pydantic parsing."""
     value = _normalise_empty(value)
     if isinstance(value, str):
         stripped = value.strip()
@@ -139,6 +152,8 @@ def _normalise_decimal(value: Any) -> Any:
 
 
 class CoreInfoRecord(StrictRwaModel):
+    """Canonical validated CoreInfo exposure record accepted by public APIs."""
+
     id: Annotated[str, Field(min_length=1, max_length=64)]
     counterparty_gid: Annotated[str, Field(min_length=1, max_length=64)]
     hsbc_intragroup_flag: Literal["Y", "N"]
@@ -181,22 +196,26 @@ class CoreInfoRecord(StrictRwaModel):
     )
     @classmethod
     def normalise_decimal_fields(cls, value: Any) -> Any:
+        """Normalise all decimal-like exposure fields before type coercion."""
         return _normalise_decimal(value)
 
     @field_validator("trade_external_rating", "counterparty_external_rating", mode="before")
     @classmethod
     def normalise_optional_rating(cls, value: Any) -> Any:
+        """Treat blank external ratings as absent ratings."""
         return _normalise_empty(value)
 
     @field_validator("avc")
     @classmethod
     def validate_avc(cls, value: Decimal) -> Decimal:
+        """Restrict asset value correlation multipliers to supported values."""
         if value not in {Decimal("1"), Decimal("1.0"), Decimal("1.25")}:
             raise ValueError("AVC must be either 1.0 or 1.25")
         return Decimal("1.0") if value == Decimal("1") else value
 
     @model_validator(mode="after")
     def validate_maturities_and_flags(self) -> CoreInfoRecord:
+        """Validate cross-field rules that depend on exposure class and maturity."""
         if self.residual_maturity > self.original_maturity:
             raise ValueError("residual_maturity cannot exceed original_maturity")
         if self.entity_class == EntityClass.MDB and self.pra_io_mdb_3_1_flag != "Y":
@@ -207,6 +226,8 @@ class CoreInfoRecord(StrictRwaModel):
 
 
 class CountryInfoRecord(StrictRwaModel):
+    """Canonical validated country reference record accepted by public APIs."""
+
     incorporation_country: CountryCode
     local_currency: CurrencyCode
     country_dlgd: Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))] | None = None
@@ -223,15 +244,19 @@ class CountryInfoRecord(StrictRwaModel):
     @field_validator("country_dlgd", mode="before")
     @classmethod
     def normalise_country_dlgd(cls, value: Any) -> Any:
+        """Normalise optional country DLGD inputs before Decimal parsing."""
         return _normalise_decimal(value)
 
     @field_validator("country_external_rating", mode="before")
     @classmethod
     def normalise_country_external_rating(cls, value: Any) -> Any:
+        """Treat blank country external ratings as absent ratings."""
         return _normalise_empty(value)
 
 
 class RwaOutputBase(StrictRwaModel):
+    """Common non-negative RWA measure fields reused by result and projection rows."""
+
     basel_3_0_rw_final: Annotated[Decimal, Field(ge=Decimal("0"))] | None = None
     basel_3_0_rwa: Annotated[Decimal, Field(ge=Decimal("0"))] | None = None
     basel_3_0_ro_rw: Annotated[Decimal, Field(ge=Decimal("0"))] | None = None
@@ -245,10 +270,13 @@ class RwaOutputBase(StrictRwaModel):
     @field_validator("*", mode="before")
     @classmethod
     def normalise_output_decimals(cls, value: Any) -> Any:
+        """Normalise decimal-like output fields when loading exported rows."""
         return _normalise_decimal(value)
 
 
 class OutputSuccessRecord(RwaOutputBase):
+    """Structured successful calculator output for one exposure."""
+
     id: Annotated[str, Field(min_length=1, max_length=64)]
     counterparty_gid: Annotated[str, Field(min_length=1, max_length=64)]
     basel_3_0_pd: Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))] | None = None
@@ -261,20 +289,28 @@ class OutputSuccessRecord(RwaOutputBase):
 
 
 class OutputProjectionRecord(RwaOutputBase):
+    """Structured projected calculator output for one exposure and date."""
+
     id: Annotated[str, Field(min_length=1, max_length=64)]
     projection_date: date
 
 
 class RwaError(StrictRwaModel):
+    """Structured calculator validation or calculation failure."""
+
     id: Annotated[str, Field(min_length=1, max_length=64)]
     messages: list[Annotated[str, Field(min_length=1)]]
 
 
 class OutputErrorResponse(StrictRwaModel):
+    """Collection of row-level calculator failures."""
+
     errors: list[RwaError] = Field(default_factory=list)
 
 
 class OutputSummary(StrictRwaModel):
+    """Record counts emitted by calculator batch workflows."""
+
     input_data_records: Annotated[int, Field(ge=0)]
     output_successful_records: Annotated[int, Field(ge=0)]
     output_successful_projection_records: Annotated[int, Field(ge=0)]
@@ -282,6 +318,8 @@ class OutputSummary(StrictRwaModel):
 
 
 class RequestedFx(StrictRwaModel):
+    """Requested FX currencies placeholder for future market-data enrichment."""
+
     currencies: list[CurrencyCode] = Field(default_factory=list)
 
 

@@ -6,6 +6,15 @@ from decimal import Decimal
 
 @dataclass(frozen=True)
 class ScenarioAssumption:
+    """Versioned scenario knobs used by the steering PoC.
+
+    The PoC intentionally keeps assumptions in code instead of generating the full
+    missing-input package. This makes the hackathon demo deterministic while still
+    exposing the same conceptual levers from the executive plan: regime label,
+    dynamic risk budget, exposure growth, rating migration, DLGD shock and FX shock.
+    Later production work should move these values into validated scenario input files.
+    """
+
     scenario_id: str
     scenario_name: str
     regime_label: str
@@ -82,6 +91,12 @@ SCENARIO_LIBRARY: dict[str, ScenarioAssumption] = {
 
 
 def get_scenario(scenario_id: str) -> ScenarioAssumption:
+    """Return a scenario by id using a case-insensitive lookup.
+
+    Raises:
+        ValueError: If the scenario id is not part of the built-in PoC scenario library.
+    """
+
     try:
         return SCENARIO_LIBRARY[scenario_id.upper()]
     except KeyError as exc:

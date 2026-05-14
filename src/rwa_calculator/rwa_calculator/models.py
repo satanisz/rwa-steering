@@ -130,6 +130,7 @@ OUTPUT_SUCCESS_COLUMNS = (
 
 
 def normalise_empty(value: Any) -> Any:
+    """Return `None` for null or blank CSV values, otherwise the original value."""
     if value is None:
         return None
     if isinstance(value, str) and value.strip() == "":
@@ -138,6 +139,7 @@ def normalise_empty(value: Any) -> Any:
 
 
 def parse_decimal(value: Any, field: str) -> Decimal:
+    """Parse required decimal input, accepting percentage strings for rates."""
     value = normalise_empty(value)
     if value is None:
         raise ValueError(f"{field} is required")
@@ -153,12 +155,14 @@ def parse_decimal(value: Any, field: str) -> Decimal:
 
 
 def parse_optional_decimal(value: Any, field: str) -> Decimal | None:
+    """Parse an optional decimal field while preserving blank inputs as `None`."""
     if normalise_empty(value) is None:
         return None
     return parse_decimal(value, field)
 
 
 def normalise_rating_grade(value: Any, field: str) -> str:
+    """Normalise and validate required internal NCCR rating grades."""
     value = normalise_empty(value)
     if value is None:
         raise ValueError(f"{field} is required")
@@ -171,6 +175,7 @@ def normalise_rating_grade(value: Any, field: str) -> str:
 
 
 def normalise_optional_external_rating(value: Any, field: str) -> str | None:
+    """Normalise optional external ratings and map UNRATED to absence of rating."""
     value = normalise_empty(value)
     if value is None:
         return None
@@ -181,6 +186,7 @@ def normalise_optional_external_rating(value: Any, field: str) -> str | None:
 
 
 def require_code(value: Any, field: str, length: int | None = None) -> str:
+    """Validate a required uppercase code, optionally enforcing exact length."""
     value = normalise_empty(value)
     if value is None:
         raise ValueError(f"{field} is required")
@@ -193,6 +199,7 @@ def require_code(value: Any, field: str, length: int | None = None) -> str:
 
 
 def require_flag(value: Any, field: str) -> str:
+    """Validate a required Y/N flag field."""
     text = require_code(value, field)
     if text not in {"Y", "N"}:
         raise ValueError(f"{field} must be Y or N")
@@ -201,6 +208,8 @@ def require_flag(value: Any, field: str) -> str:
 
 @dataclass(frozen=True)
 class CoreInfoRecord:
+    """Validated internal exposure record consumed by the calculation engine."""
+
     id: str
     counterparty_gid: str
     hsbc_intragroup_flag: str
@@ -227,6 +236,7 @@ class CoreInfoRecord:
 
     @classmethod
     def from_mapping(cls, row: dict[str, Any]) -> CoreInfoRecord:
+        """Build and validate a core exposure record from a CSV/API row mapping."""
         missing = [column for column in CORE_INFO_COLUMNS if column not in row]
         if missing:
             raise ValueError(f"Missing core columns: {', '.join(missing)}")
@@ -286,6 +296,7 @@ class CoreInfoRecord:
         return record
 
     def validate(self) -> None:
+        """Apply cross-field business validation after primitive parsing."""
         if not self.id:
             raise ValueError("id is required")
         if not self.counterparty_gid:
@@ -317,6 +328,8 @@ class CoreInfoRecord:
 
 @dataclass(frozen=True)
 class CountryInfoRecord:
+    """Validated country reference record consumed by the calculation engine."""
+
     incorporation_country: str
     local_currency: str
     country_dlgd: Decimal | None
@@ -328,6 +341,7 @@ class CountryInfoRecord:
 
     @classmethod
     def from_mapping(cls, row: dict[str, Any]) -> CountryInfoRecord:
+        """Build and validate a country reference record from a row mapping."""
         missing = [column for column in COUNTRY_INFO_COLUMNS if column not in row]
         if missing:
             raise ValueError(f"Missing country columns: {', '.join(missing)}")
@@ -365,6 +379,8 @@ class CountryInfoRecord:
 
 @dataclass(frozen=True)
 class CalculationTraceStep:
+    """Single explainability step returned with trace-enabled calculations."""
+
     step_id: str
     description: str
     input_values: dict[str, str]

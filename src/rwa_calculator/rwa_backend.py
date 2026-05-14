@@ -14,6 +14,7 @@ from rwa_calculator.rwa_calculator.server import build_server, calculate_file
 
 
 def main() -> None:
+    """Console entry point for calculator server and batch calculation commands."""
     parser = argparse.ArgumentParser(description="Restricted-environment Basel/RWA backend")
     subparsers = parser.add_subparsers(dest="command")
 

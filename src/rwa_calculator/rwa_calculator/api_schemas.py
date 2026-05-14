@@ -11,6 +11,8 @@ from rwa_calculator.rwa_pydantic_schemas import CoreInfoRecord, CountryInfoRecor
 
 
 class ApiModel(BaseModel):
+    """Base API model with strict validation and Decimal-safe JSON rendering."""
+
     model_config = ConfigDict(
         extra="forbid",
         validate_assignment=True,
@@ -20,12 +22,15 @@ class ApiModel(BaseModel):
 
     @field_serializer("*", when_used="json")
     def serialize_decimal(self, value: Any) -> Any:
+        """Serialise Decimal values as strings for lossless API payloads."""
         if isinstance(value, Decimal):
             return str(value)
         return value
 
 
 class RuleReference(ApiModel):
+    """Reference to a regulatory or project rule used by a trace step."""
+
     source_document: str
     section: str
     pdf_page: int | None = None
@@ -34,6 +39,8 @@ class RuleReference(ApiModel):
 
 
 class CalculationTraceStep(ApiModel):
+    """Human-readable audit step emitted when trace output is requested."""
+
     step_id: str
     description: str
     input_values: dict[str, str] = Field(default_factory=dict)
@@ -43,6 +50,8 @@ class CalculationTraceStep(ApiModel):
 
 
 class RwaResult(ApiModel):
+    """Successful point-in-time RWA calculation for one exposure."""
+
     id: str
     counterparty_gid: str
     basel_3_0_pd: Decimal
@@ -65,6 +74,8 @@ class RwaResult(ApiModel):
 
 
 class RwaProjection(ApiModel):
+    """Legacy one-date projection shape returned by the calculator adapter."""
+
     id: str
     projection_date: date
     basel_3_0_rw_final: Decimal | None = None
@@ -79,11 +90,15 @@ class RwaProjection(ApiModel):
 
 
 class RwaError(ApiModel):
+    """Calculator error for one input row."""
+
     id: str
     messages: list[str]
 
 
 class OutputSummary(ApiModel):
+    """Record counts for a calculator request."""
+
     input_data_records: int = Field(ge=0)
     output_successful_records: int = Field(ge=0)
     output_successful_projection_records: int = Field(ge=0)
@@ -91,6 +106,8 @@ class OutputSummary(ApiModel):
 
 
 class CalculateRequest(ApiModel):
+    """JSON request accepted by the RWA calculator API."""
+
     regulatory_reference_version: str = Field(default="basel_iii_final_reforms_2017")
     include_trace: bool = False
     projection_date: date | None = None
@@ -99,6 +116,8 @@ class CalculateRequest(ApiModel):
 
 
 class CalculateResponse(ApiModel):
+    """JSON response returned by the RWA calculator API."""
+
     regulatory_reference_version: str
     calculation_engine_version: str
     summary: OutputSummary
@@ -108,6 +127,8 @@ class CalculateResponse(ApiModel):
 
 
 class HealthResponse(ApiModel):
+    """Health endpoint payload with dependency and reference-data metadata."""
+
     status: str
     service: str
     calculation_engine_version: str
@@ -118,6 +139,7 @@ class HealthResponse(ApiModel):
 
 
 def pydantic_row_to_engine_row(model: BaseModel) -> dict[str, Any]:
+    """Convert validated API models into the row dictionaries expected by the engine."""
     row = model.model_dump(mode="python")
     normalised: dict[str, Any] = {}
     for key, value in row.items():

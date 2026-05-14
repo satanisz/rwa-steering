@@ -23,26 +23,32 @@ CALCULATION_ENGINE_VERSION = "rwa-alpha-0.2.0"
 
 
 class ServiceSettings:
+    """File-system configuration for the calculator microservice."""
+
     def __init__(
         self,
         nccr_mapping_path: str | Path = NCCR_MAPPING_PATH,
         country_info_path: str | Path = PREPROD_COUNTRY_INFO_PATH,
         reference_data_root: str | Path = REFERENCE_DATA_ROOT,
     ) -> None:
+        """Resolve configured reference-data paths to `Path` objects."""
         self.nccr_mapping_path = Path(nccr_mapping_path)
         self.country_info_path = Path(country_info_path)
         self.reference_data_root = Path(reference_data_root)
 
 
 def get_settings() -> ServiceSettings:
+    """Return default settings for framework integrations and tests."""
     return ServiceSettings()
 
 
 def build_calculator(settings: ServiceSettings) -> RwaCalculator:
+    """Build a calculator instance from service settings."""
     return RwaCalculator.from_files(settings.nccr_mapping_path, settings.country_info_path)
 
 
 def create_app(settings: ServiceSettings | None = None) -> FastAPI:
+    """Create the calculator FastAPI app and attach shared service dependencies."""
     resolved_settings = settings or ServiceSettings()
     calculator = build_calculator(resolved_settings)
     normal_distribution = NormalDistribution()
@@ -59,10 +65,12 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
     app.state.reference_data_package = reference_data_package
 
     def get_calculator() -> RwaCalculator:
+        """Provide the app-scoped calculator to request handlers."""
         return app.state.calculator
 
     @app.get("/health", response_model=HealthResponse, tags=["service"])
     def health() -> HealthResponse:
+        """Return liveness and dependency metadata for monitoring."""
         return HealthResponse(
             status="ok",
             service="rwa-calculator",
@@ -75,6 +83,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
 
     @app.get("/readiness", tags=["service"])
     def readiness() -> dict[str, str]:
+        """Verify that required reference-data files are available on disk."""
         settings_obj: ServiceSettings = app.state.settings
         for path in (
             settings_obj.nccr_mapping_path,
@@ -87,18 +96,22 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
 
     @app.get("/reference/nccr", tags=["reference"])
     def nccr_reference(calc: RwaCalculator = Depends(get_calculator)) -> dict:
+        """Expose the loaded NCCR mapping for debugging and audit inspection."""
         return calc.nccr_mapping
 
     @app.get("/reference/manifest", tags=["reference"])
     def reference_manifest() -> dict:
+        """Expose the reference-data manifest currently used by the service."""
         return app.state.reference_data_package.manifest
 
     @app.get("/reference/baseline", tags=["reference"])
     def reference_baseline() -> dict:
+        """Expose baseline reference-data package contents."""
         return app.state.reference_data_package.baseline
 
     @app.get("/reference/jurisdictions/{jurisdiction_id}", tags=["reference"])
     def reference_jurisdiction(jurisdiction_id: str) -> dict:
+        """Expose one jurisdiction-specific reference-data overlay."""
         try:
             return app.state.reference_data_package.jurisdiction(jurisdiction_id)
         except ValueError as exc:
@@ -106,6 +119,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
 
     @app.get("/countries", tags=["reference"])
     def countries(calc: RwaCalculator = Depends(get_calculator)) -> dict:
+        """Expose country reference records loaded into the calculator."""
         return {code: asdict(country) for code, country in calc.countries.items()}
 
     @app.post("/rwa/calculate", response_model=CalculateResponse, tags=["calculation"])
@@ -113,6 +127,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
         request: CalculateRequest,
         calc: RwaCalculator = Depends(get_calculator),
     ) -> CalculateResponse:
+        """Calculate RWA for a JSON portfolio slice."""
         rows = [pydantic_row_to_engine_row(row) for row in request.core_info]
         if request.country_info:
             countries = {
@@ -151,6 +166,7 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
         regulatory_reference_version: str = "basel_iii_final_reforms_2017",
         calc: RwaCalculator = Depends(get_calculator),
     ) -> CalculateResponse:
+        """Calculate RWA for uploaded CoreInfo and optional CountryInfo CSV files."""
         try:
             rows = read_core_csv_bytes(await core_file.read())
             if country_file is not None:

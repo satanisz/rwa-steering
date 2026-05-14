@@ -35,18 +35,26 @@ PROJECTION_VALUE_FIELDS = (
 
 
 class RwaProjectionService:
-    """Projection engine treating the RWA calculator as f(x, t)."""
+    """Projection engine treating the RWA calculator as f(x, t).
+
+    The service does not reimplement Basel logic. It builds future views of
+    each input asset by advancing time-dependent fields, primarily residual
+    maturity, then delegates every point-in-time calculation to
+    `rwa_calculator`.
+    """
 
     def __init__(
         self,
         nccr_mapping_path: str | Path = NCCR_MAPPING_PATH,
         country_info_path: str | Path = PREPROD_COUNTRY_INFO_PATH,
     ) -> None:
+        """Load stable reference data used by default projection requests."""
         self.nccr_mapping_path = Path(nccr_mapping_path)
         self.country_info_path = Path(country_info_path)
         self.calculator = RwaCalculator.from_files(self.nccr_mapping_path, self.country_info_path)
 
     def calculate(self, request: ProjectionRequest) -> ProjectionResponse:
+        """Calculate base RWA and all monthly projected RWA points for a request."""
         calculator = self._calculator_for_request(request)
         dates = projection_dates(request.run_date, request.projected_months)
 
@@ -88,6 +96,7 @@ class RwaProjectionService:
         )
 
     def _calculator_for_request(self, request: ProjectionRequest) -> RwaCalculator:
+        """Return a calculator scoped to request-level country overrides if supplied."""
         if request.country_info is None:
             return self.calculator
 
@@ -109,6 +118,12 @@ class RwaProjectionService:
         projection_date: date,
         errors: list[ProjectionError],
     ) -> OutputProjection:
+        """Project one asset to one date and append row-level failures to `errors`.
+
+        A matured asset is represented by zero RWA values. A malformed or
+        recalculation-failing asset keeps the projection grid shape but returns
+        empty measures, so consumers can distinguish "matured" from "failed".
+        """
         row_id = str(row.get("id") or "unknown")
         residual_maturity = parse_optional_decimal(row.get("residual_maturity"))
         if residual_maturity is None:
@@ -143,6 +158,7 @@ class RwaProjectionService:
 
 
 def elapsed_years(run_date: date, projection_date: date) -> Decimal:
+    """Return elapsed actual/365 years between run date and projection date."""
     elapsed_days = (projection_date - run_date).days
     if elapsed_days <= 0:
         return Decimal("0")
@@ -150,6 +166,7 @@ def elapsed_years(run_date: date, projection_date: date) -> Decimal:
 
 
 def parse_optional_decimal(value: Any) -> Decimal | None:
+    """Parse an optional decimal-compatible input while preserving blanks as `None`."""
     if value is None:
         return None
     if isinstance(value, str) and value.strip() == "":
@@ -163,6 +180,7 @@ def parse_optional_decimal(value: Any) -> Decimal | None:
 
 
 def zero_projection(row_id: str, projection_date: date) -> OutputProjection:
+    """Build a projection row for an asset that has matured before the horizon date."""
     return OutputProjection(
         id=row_id,
         projection_date=projection_date,
@@ -171,6 +189,7 @@ def zero_projection(row_id: str, projection_date: date) -> OutputProjection:
 
 
 def empty_projection(row_id: str, projection_date: date) -> OutputProjection:
+    """Build a shape-preserving projection row when no valid RWA can be produced."""
     return OutputProjection(
         id=row_id,
         projection_date=projection_date,
@@ -179,10 +198,12 @@ def empty_projection(row_id: str, projection_date: date) -> OutputProjection:
 
 
 def projection_response_to_dict(response: ProjectionResponse) -> dict[str, Any]:
+    """Convert a response to a plain dictionary with projection rows normalised."""
     payload = response.model_dump(mode="python")
     payload["projections"] = [asdict_projection(row) for row in response.projections]
     return payload
 
 
 def asdict_projection(row: OutputProjection) -> dict[str, Any]:
+    """Convert one projection model to the dictionary shape used by tests and exports."""
     return row.model_dump(mode="python")

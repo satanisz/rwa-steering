@@ -4,6 +4,7 @@ import argparse
 
 
 def main() -> None:
+    """Run the projection FastAPI application from the console script entry point."""
     parser = argparse.ArgumentParser(description="RWA projection service")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8010)

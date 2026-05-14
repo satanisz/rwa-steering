@@ -35,6 +35,7 @@ RATING_ORDER = [
 
 
 def load_nccr_mapping(path: str | Path) -> dict[str, dict[str, Decimal]]:
+    """Load CRR/NCCR grade-to-PD mapping by Basel exposure bucket."""
     mapping: dict[str, dict[str, Decimal]] = {}
     with Path(path).open("r", encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
@@ -52,6 +53,7 @@ def load_nccr_mapping(path: str | Path) -> dict[str, dict[str, Decimal]]:
 
 
 def load_country_info(path: str | Path) -> dict[str, CountryInfoRecord]:
+    """Load country reference rows keyed by ISO country code."""
     countries: dict[str, CountryInfoRecord] = {}
     with Path(path).open("r", encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
@@ -63,6 +65,7 @@ def load_country_info(path: str | Path) -> dict[str, CountryInfoRecord]:
 
 
 def load_json(path: str | Path) -> dict[str, Any]:
+    """Load a JSON reference file and require an object payload."""
     with Path(path).open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
@@ -71,7 +74,10 @@ def load_json(path: str | Path) -> dict[str, Any]:
 
 
 class ReferenceDataPackage:
+    """Versioned reference-data bundle loaded from the manifest directory."""
+
     def __init__(self, root: str | Path = REFERENCE_DATA_ROOT) -> None:
+        """Load manifest, baseline package, and configured jurisdiction overlays."""
         self.root = Path(root)
         self.manifest = load_json(self.root / "manifest.json")
         baseline_path = self.root / self.manifest["baseline"]["path"]
@@ -83,17 +89,21 @@ class ReferenceDataPackage:
 
     @property
     def package_id(self) -> str:
+        """Return the manifest package identifier for health and audit metadata."""
         return str(self.manifest.get("package_id", "unknown"))
 
     @property
     def package_version(self) -> str:
+        """Return the manifest package version for health and audit metadata."""
         return str(self.manifest.get("package_version", "unknown"))
 
     @property
     def production_ready(self) -> bool:
+        """Report whether the reference package is marked as production ready."""
         return bool(self.manifest.get("production_ready", False))
 
     def jurisdiction(self, jurisdiction_id: str) -> dict[str, Any]:
+        """Return a jurisdiction overlay or raise a readable error listing options."""
         try:
             return self.jurisdictions[jurisdiction_id]
         except KeyError as exc:
@@ -104,6 +114,7 @@ class ReferenceDataPackage:
 
 
 def rating_index(rating: str | None) -> int | None:
+    """Return ordinal position in the external-rating scale, or `None` if absent."""
     if rating is None:
         return None
     try:
@@ -113,6 +124,7 @@ def rating_index(rating: str | None) -> int | None:
 
 
 def rated_between(rating: str | None, best: str, worst: str) -> bool:
+    """Check whether a rating lies inclusively between two ordered rating symbols."""
     idx = rating_index(rating)
     if idx is None:
         return False
@@ -120,6 +132,7 @@ def rated_between(rating: str | None, best: str, worst: str) -> bool:
 
 
 def sovereign_external_rw(rating: str | None) -> Decimal:
+    """Map sovereign external rating to Basel standardised risk weight."""
     if rated_between(rating, "AAA", "AA-"):
         return Decimal("0.00")
     if rated_between(rating, "A+", "A-"):
@@ -134,6 +147,7 @@ def sovereign_external_rw(rating: str | None) -> Decimal:
 
 
 def pse_option_1_rw(sovereign_rating: str | None) -> Decimal:
+    """Map sovereign rating to PSE option 1 standardised risk weight."""
     if rated_between(sovereign_rating, "AAA", "AA-"):
         return Decimal("0.20")
     if rated_between(sovereign_rating, "A+", "A-"):
@@ -146,6 +160,7 @@ def pse_option_1_rw(sovereign_rating: str | None) -> Decimal:
 
 
 def mdb_rw(rating: str | None, eligible_zero_weight: bool) -> Decimal:
+    """Return MDB standardised risk weight, including zero-weight eligibility."""
     if eligible_zero_weight:
         return Decimal("0.00")
     if rated_between(rating, "AAA", "AA-"):
@@ -162,6 +177,7 @@ def mdb_rw(rating: str | None, eligible_zero_weight: bool) -> Decimal:
 
 
 def bank_ecra_rw(rating: str | None, short_term: bool) -> Decimal | None:
+    """Return bank ECRA risk weight when an external bank rating is available."""
     if rating is None:
         return None
     if rated_between(rating, "AAA", "AA-"):
@@ -176,6 +192,7 @@ def bank_ecra_rw(rating: str | None, short_term: bool) -> Decimal | None:
 
 
 def bank_scra_rw(credit_quality: str, short_term: bool) -> Decimal:
+    """Return bank SCRA fallback risk weight from credit quality grade."""
     if credit_quality == "INVESTMENT_GRADE":
         return Decimal("0.20") if short_term else Decimal("0.40")
     if credit_quality == "HIGH_YIELD":
@@ -184,6 +201,7 @@ def bank_scra_rw(credit_quality: str, short_term: bool) -> Decimal:
 
 
 def corporate_external_rw(rating: str | None, investment_grade: bool) -> Decimal:
+    """Map corporate external rating or investment-grade flag to standardised RW."""
     if rating is None:
         return Decimal("0.65") if investment_grade else Decimal("1.00")
     if rated_between(rating, "AAA", "AA-"):

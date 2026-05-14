@@ -19,7 +19,7 @@ def add_months(value: date, months: int) -> date:
 
 
 def projection_dates(run_date: date, projected_months: int) -> list[date]:
-    """Build t0 plus month-end projection dates t1..tN."""
+    """Build the projection grid: t0 run date followed by month ends t1..tN."""
     dates = [run_date]
     current_month_start = date(run_date.year, run_date.month, 1)
     dates.extend(

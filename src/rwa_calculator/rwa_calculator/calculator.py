@@ -34,12 +34,15 @@ NORMAL = NormalDist()
 
 
 class RwaCalculator:
+    """Deterministic Basel/RWA calculation engine over validated exposure rows."""
+
     def __init__(
         self,
         nccr_mapping_path: str | Path = NCCR_MAPPING_PATH,
         countries: dict[str, CountryInfoRecord] | None = None,
         nccr_mapping: dict[str, dict[str, Decimal]] | None = None,
     ) -> None:
+        """Create a calculator from in-memory or file-backed reference data."""
         self.nccr_mapping_path = Path(nccr_mapping_path)
         self.nccr_mapping = nccr_mapping or load_nccr_mapping(self.nccr_mapping_path)
         self.countries = countries or {}
@@ -50,6 +53,7 @@ class RwaCalculator:
         nccr_mapping_path: str | Path = NCCR_MAPPING_PATH,
         country_info_path: str | Path = PREPROD_COUNTRY_INFO_PATH,
     ) -> RwaCalculator:
+        """Load the default calculator reference inputs from CSV files."""
         return cls(
             nccr_mapping_path=nccr_mapping_path, countries=load_country_info(country_info_path)
         )
@@ -60,6 +64,13 @@ class RwaCalculator:
         include_trace: bool = False,
         projection_date: str | None = None,
     ) -> dict[str, Any]:
+        """Calculate RWA for a list of input rows and collect row-level errors.
+
+        Batch mode is intentionally tolerant: one invalid row is returned in the
+        `errors` collection while valid rows continue through the engine. This
+        mirrors bank data-quality workflows where partial portfolio feedback is
+        more useful than failing the entire upload.
+        """
         results: list[dict[str, Any]] = []
         projections: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
@@ -96,6 +107,7 @@ class RwaCalculator:
     def calculate_record(
         self, record: CoreInfoRecord
     ) -> tuple[dict[str, Any], list[CalculationTraceStep]]:
+        """Calculate Basel 3.0 and Basel 3.1 RWA measures for one exposure."""
         trace: list[CalculationTraceStep] = []
         country = self.countries.get(record.incorporation_country)
         if country is None:
@@ -229,6 +241,7 @@ class RwaCalculator:
     def _standardised_risk_weight(
         self, record: CoreInfoRecord, country: CountryInfoRecord
     ) -> Decimal:
+        """Select the Basel standardised risk weight for the exposure class."""
         rating = record.trade_external_rating or record.counterparty_external_rating
         if record.entity_class == "SOV":
             rw = sovereign_external_rw(
@@ -279,6 +292,7 @@ class RwaCalculator:
         lgd: Decimal,
         maturity: Decimal,
     ) -> Decimal:
+        """Calculate the IRB risk weight proxy, falling back where IRB is unsupported."""
         if record.entity_class in {"RETAIL"}:
             k = self._retail_capital_requirement(record, pd, lgd)
         elif record.entity_class == "OTHER":
@@ -292,6 +306,7 @@ class RwaCalculator:
     def _corporate_bank_capital_requirement(
         self, pd: Decimal, lgd: Decimal, maturity: Decimal
     ) -> Decimal:
+        """Return Basel corporate/bank capital requirement `K` before 12.5 scaling."""
         pd_f = min(max(float(pd), 0.000001), 0.999999)
         lgd_f = float(lgd)
         maturity_f = float(maturity)
@@ -308,6 +323,7 @@ class RwaCalculator:
     def _retail_capital_requirement(
         self, record: CoreInfoRecord, pd: Decimal, lgd: Decimal
     ) -> Decimal:
+        """Return Basel retail capital requirement `K` for the supported subclasses."""
         pd_f = min(max(float(pd), 0.000001), 0.999999)
         lgd_f = float(lgd)
         if record.sub_class == "RESIDENTIAL_REAL_ESTATE":
@@ -322,6 +338,7 @@ class RwaCalculator:
         return Decimal(str(max(k, 0.0)))
 
     def _foundation_lgd(self, record: CoreInfoRecord, country: CountryInfoRecord) -> Decimal:
+        """Derive Basel 3.1 foundation LGD from exposure class and country inputs."""
         if record.entity_class in {"SOV", "PSE", "MDB"}:
             return country.country_dlgd if country.country_dlgd is not None else Decimal("0.05")
         if record.entity_class in {"BANK", "FI"}:
@@ -333,6 +350,7 @@ class RwaCalculator:
         return Decimal("0.40")
 
     def _pd_bucket(self, entity_class: str) -> str:
+        """Map exposure class to the NCCR PD bucket used in the reference table."""
         if entity_class in {"SOV", "PSE", "MDB"}:
             return "SOV"
         if entity_class in {"BANK", "FI"}:
@@ -340,6 +358,7 @@ class RwaCalculator:
         return "CORP"
 
     def _pd_with_floor(self, pd: Decimal, entity_class: str) -> Decimal:
+        """Apply the current PD floor for exposure classes in scope."""
         if entity_class in {"CORP", "BANK", "FI"}:
             return max(pd, Decimal("0.0005"))
         if entity_class == "RETAIL":
@@ -347,9 +366,11 @@ class RwaCalculator:
         return pd
 
     def _sovereign_or_country_rw(self, country: CountryInfoRecord) -> Decimal:
+        """Return sovereign risk weight used for government-guarantee substitution."""
         return sovereign_external_rw(country.country_external_rating)
 
     def _build_projection(self, result: dict[str, Any], projection_date: str) -> dict[str, Any]:
+        """Build the calculator's legacy one-date projection record from a result row."""
         fields = {
             key: result[key]
             for key in OUTPUT_SUCCESS_COLUMNS
@@ -370,18 +391,22 @@ class RwaCalculator:
         return fields
 
     def _q_rate(self, value: Decimal) -> Decimal:
+        """Quantize rate-like outputs to the engine's published precision."""
         return value.quantize(RATE_Q, rounding=ROUND_HALF_UP)
 
     def _q_money(self, value: Decimal) -> Decimal:
+        """Quantize money-like outputs to cents."""
         return value.quantize(MONEY_Q, rounding=ROUND_HALF_UP)
 
 
 def load_core_csv(path: str | Path) -> list[dict[str, str]]:
+    """Load CoreInfo CSV rows as dictionaries for restricted CLI/server mode."""
     with Path(path).open("r", encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
 
 
 def decimal_json_default(value: Any) -> Any:
+    """JSON fallback for Decimals and dataclass trace/reference objects."""
     if isinstance(value, Decimal):
         return str(value)
     if is_dataclass(value):
@@ -390,4 +415,5 @@ def decimal_json_default(value: Any) -> Any:
 
 
 def dumps_json(payload: Any) -> str:
+    """Dump calculator payloads with stable formatting and Decimal support."""
     return json.dumps(payload, default=decimal_json_default, indent=2, sort_keys=False)

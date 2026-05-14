@@ -27,14 +27,47 @@ METHODOLOGY = (
 
 
 class RwaSteeringPocService:
+    """Run regime-aware RWA steering scenarios on top of the deterministic calculator.
+
+    This service is the orchestration layer described in the executive plan. It never bypasses
+    the RWA calculator and never predicts RWA directly. Instead it:
+
+    1. Calculates current portfolio RWA.
+    2. Projects calculator input rows under scenario assumptions.
+    3. Re-runs the projected rows through ``rwa_calculator``.
+    4. Builds scenario summaries, attribution and recommendation outputs.
+
+    The implementation is deliberately deterministic for hackathon credibility. It borrows the
+    article's concepts of regime adaptation, dynamic risk budgeting and interpretable
+    attribution, but does not claim to train or deploy a production ML model.
+    """
+
     def __init__(
         self,
         nccr_mapping_path: str | Path = NCCR_MAPPING_PATH,
         country_info_path: str | Path = PREPROD_COUNTRY_INFO_PATH,
     ) -> None:
+        """Initialize the service with the calculator reference files.
+
+        Args:
+            nccr_mapping_path: Path to the NCCR/CRR mapping used by the calculator.
+            country_info_path: Path to country reference data used by the calculator.
+        """
+
         self.calculator = RwaCalculator.from_files(nccr_mapping_path, country_info_path)
 
     def run(self, request: SteeringRequest) -> SteeringResponse:
+        """Execute a full steering run for all requested scenarios and dates.
+
+        Args:
+            request: Validated steering request containing current calculator input rows,
+                projection dates and scenario ids.
+
+        Returns:
+            A dashboard-ready response with scenario summaries, exposure projections,
+            sequential attribution and ranked recommendations.
+        """
+
         current_payload = self.calculator.calculate_batch(request.core_info)
         current_by_id = results_by_id(current_payload["results"])
         current_total = portfolio_rwa(current_payload["results"])
@@ -115,6 +148,8 @@ class RwaSteeringPocService:
         current_total: Decimal,
         projected_total: Decimal,
     ) -> ScenarioRunSummary:
+        """Build portfolio-level RWA delta metrics for one scenario/date."""
+
         delta = projected_total - current_total
         return ScenarioRunSummary(
             scenario_id=scenario.scenario_id,
@@ -139,6 +174,13 @@ class RwaSteeringPocService:
         current_by_id: dict[str, dict[str, Any]],
         projected_by_id: dict[str, dict[str, Any]],
     ) -> list[ProjectionRow]:
+        """Build exposure-level current-versus-projected RWA rows.
+
+        ``current_rows`` and ``projected_rows`` are zipped with ``strict=True`` because order is
+        expected to be preserved by the projection loop. A mismatch means the steering layer is
+        about to report deltas against the wrong asset and should fail loudly.
+        """
+
         rows: list[ProjectionRow] = []
         for current_row, projected_row in zip(current_rows, projected_rows, strict=True):
             row_id = str(current_row["id"])
@@ -179,6 +221,14 @@ class RwaSteeringPocService:
         current_total: Decimal,
         projected_total: Decimal,
     ) -> AttributionRow:
+        """Compute first-order portfolio attribution by sequential revaluation.
+
+        Each driver is isolated by applying exactly one projection transformation and re-running
+        the full portfolio through the calculator. This keeps attribution explainable and aligned
+        with the regulatory calculator, while the residual discloses interaction effects between
+        volume, maturity, ratings, DLGD and FX.
+        """
+
         driver_totals = {
             "volume_delta": self._driver_delta(
                 request, scenario, projection_date, current_total, apply_volume=True
@@ -220,6 +270,13 @@ class RwaSteeringPocService:
         current_total: Decimal,
         **driver_flag: bool,
     ) -> Decimal:
+        """Calculate one first-order RWA driver delta.
+
+        ``driver_flag`` contains exactly one enabled transformation in normal use. The method
+        still accepts keyword flags to keep the call site explicit and to make future multi-driver
+        sensitivity tests easy to add.
+        """
+
         projected_rows = [
             project_row(
                 row,
@@ -247,6 +304,14 @@ class RwaSteeringPocService:
         projected_by_id: dict[str, dict[str, Any]],
         top_n: int,
     ) -> list[RecommendationRow]:
+        """Generate and score first-version steering recommendations.
+
+        The current PoC simulates one action: ``REDUCE_EXPOSURE`` via a 20% exposure reduction.
+        Candidate assets are the top projected RWA contributors. The score combines estimated
+        RWA saving, the scenario risk-budget multiplier, a simple business-cost proxy and
+        implementation complexity. This is decision support, not automated portfolio action.
+        """
+
         candidates: list[RecommendationRow] = []
         ranked_rows = sorted(
             projected_rows,
@@ -289,10 +354,14 @@ class RwaSteeringPocService:
 
 
 def results_by_id(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Index calculator output rows by exposure id."""
+
     return {str(row["id"]): row for row in results}
 
 
 def portfolio_rwa(results: list[dict[str, Any]]) -> Decimal:
+    """Aggregate Basel 3.1 final RWA from calculator output rows."""
+
     return sum(
         (parse_decimal(row[RWA_FIELD], default=Decimal("0")) for row in results),
         Decimal("0"),
@@ -300,6 +369,8 @@ def portfolio_rwa(results: list[dict[str, Any]]) -> Decimal:
 
 
 def safe_pct(delta: Decimal, base: Decimal) -> Decimal | None:
+    """Return ``delta / base`` while preserving ``None`` for zero denominators."""
+
     if base == Decimal("0"):
         return None
     return delta / base

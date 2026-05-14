@@ -10,11 +10,19 @@ from .calculator import RwaCalculator, dumps_json, load_core_csv
 
 
 class RwaRequestHandler(BaseHTTPRequestHandler):
+    """Restricted stdlib HTTP adapter around `RwaCalculator`.
+
+    This exists for environments where FastAPI/ASGI dependencies are not
+    available. New integrations should prefer the FastAPI app, but this handler
+    remains useful for minimal runtime and compatibility checks.
+    """
+
     calculator: RwaCalculator
 
     server_version = "RestrictedRwaBackend/1.0"
 
     def do_GET(self) -> None:
+        """Handle health and reference-data GET endpoints."""
         path = urlparse(self.path).path
         if path in {"/", "/health"}:
             self._send_json(
@@ -39,6 +47,7 @@ class RwaRequestHandler(BaseHTTPRequestHandler):
         self._send_json({"error": f"Unknown endpoint {path}"}, status=404)
 
     def do_POST(self) -> None:
+        """Handle JSON batch calculation requests."""
         path = urlparse(self.path).path
         if path != "/calculate":
             self._send_json({"error": f"Unknown endpoint {path}"}, status=404)
@@ -61,9 +70,11 @@ class RwaRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=400)
 
     def log_message(self, format: str, *args: Any) -> None:
+        """Silence default stdlib request logging for cleaner CLI output."""
         return
 
     def _read_json(self) -> dict[str, Any]:
+        """Read and validate the request body as a JSON object."""
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length)
         if not raw:
@@ -74,6 +85,7 @@ class RwaRequestHandler(BaseHTTPRequestHandler):
         return payload
 
     def _send_json(self, payload: Any, status: int = 200) -> None:
+        """Write a JSON response with stable calculator serialisation."""
         body = dumps_json(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -88,10 +100,11 @@ def build_server(
     nccr_mapping_path: str | Path,
     country_info_path: str | Path,
 ) -> ThreadingHTTPServer:
+    """Build a restricted stdlib HTTP server with a preloaded calculator."""
     calculator = RwaCalculator.from_files(nccr_mapping_path, country_info_path)
 
     class Handler(RwaRequestHandler):
-        pass
+        """Request handler bound to the calculator created for this server."""
 
     Handler.calculator = calculator
     return ThreadingHTTPServer((host, port), Handler)
@@ -104,6 +117,7 @@ def calculate_file(
     include_trace: bool = False,
     projection_date: str | None = None,
 ) -> dict[str, Any]:
+    """Calculate RWA for CSV file inputs in restricted CLI mode."""
     calculator = RwaCalculator.from_files(nccr_path, country_path)
     return calculator.calculate_batch(
         load_core_csv(core_path),

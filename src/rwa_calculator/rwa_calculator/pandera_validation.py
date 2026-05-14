@@ -15,6 +15,7 @@ from .models import (
 
 
 def _isin(values: set[str]):
+    """Build a deterministic Pandera membership check for enum-like columns."""
     return pa.Check.isin(sorted(values))
 
 
@@ -92,12 +93,14 @@ COUNTRY_INFO_SCHEMA = pa.DataFrameSchema(
 
 
 def read_core_csv_bytes(content: bytes) -> list[dict[str, Any]]:
+    """Validate uploaded CoreInfo CSV bytes and return calculator row dictionaries."""
     frame = pd.read_csv(BytesIO(content), dtype=str, keep_default_na=False)
     frame = CORE_INFO_SCHEMA.validate(frame, lazy=True)
     return frame.to_dict(orient="records")
 
 
 def read_country_csv_bytes(content: bytes) -> list[dict[str, Any]]:
+    """Validate uploaded CountryInfo CSV bytes and return reference row dictionaries."""
     frame = pd.read_csv(BytesIO(content), dtype=str, keep_default_na=False)
     frame = COUNTRY_INFO_SCHEMA.validate(frame, lazy=True)
     return frame.to_dict(orient="records")

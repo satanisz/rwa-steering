@@ -4,6 +4,7 @@ import argparse
 
 
 def main() -> None:
+    """Run the steering PoC FastAPI application from the console script."""
     parser = argparse.ArgumentParser(description="Run the RWA steering PoC API")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8020)

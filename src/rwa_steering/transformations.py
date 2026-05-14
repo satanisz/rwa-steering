@@ -11,6 +11,13 @@ from .scenarios import ScenarioAssumption
 
 
 def parse_decimal(value: Any, default: Decimal | None = None) -> Decimal:
+    """Parse calculator-style scalar values into ``Decimal``.
+
+    Calculator inputs and outputs can arrive as strings, decimals or occasionally empty
+    strings from CSV records. Steering code keeps all financial arithmetic in Decimal to
+    avoid float drift in RWA deltas and recommendation scores.
+    """
+
     if value is None or (isinstance(value, str) and value.strip() == ""):
         if default is None:
             raise ValueError("Decimal value is required")
@@ -24,6 +31,13 @@ def parse_decimal(value: Any, default: Decimal | None = None) -> Decimal:
 
 
 def migrate_rating(grade: Any, notch_shift: int) -> str:
+    """Move an NCCR rating up or down the known calculator rating scale.
+
+    Positive ``notch_shift`` deteriorates credit quality; negative values improve it.
+    The result is clipped at the best and worst supported grades so scenario shocks never
+    produce a rating outside the schema accepted by ``rwa_calculator``.
+    """
+
     grade_text = str(grade).strip()
     scale = list(NCCR_RATING_GRADES)
     current_index = scale.index(grade_text)
@@ -43,6 +57,18 @@ def project_row(
     apply_dlgd: bool = True,
     apply_fx: bool = True,
 ) -> dict[str, Any]:
+    """Project one calculator input row to a future scenario/date.
+
+    This is the central adapter between steering assumptions and the deterministic RWA
+    calculator. It forecasts calculator inputs rather than final RWA, preserving auditability:
+    every projected row can be validated and passed through the same regulatory calculator as
+    the current portfolio.
+
+    The ``apply_*`` switches support sequential revaluation attribution. For example, the
+    attribution layer can set only ``apply_rating=True`` to isolate the first-order rating
+    migration impact while leaving volume, maturity, DLGD and FX unchanged.
+    """
+
     years = elapsed_years(as_of_date, projection_date)
     projected = dict(row)
 

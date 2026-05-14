@@ -8,6 +8,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class SteeringModel(BaseModel):
+    """Base Pydantic model for all steering API contracts.
+
+    The strict-ish configuration keeps hackathon outputs dashboard-ready and prevents silent
+    schema drift between the API, tests and future reporting exporters. Decimal values are
+    serialized as strings to avoid lossy JSON float conversion.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
         validate_assignment=True,
@@ -17,6 +24,7 @@ class SteeringModel(BaseModel):
 
     @field_serializer("*", when_used="json")
     def serialize_decimal(self, value: Any) -> Any:
+        """Render Decimal fields as strings for lossless steering API responses."""
         if isinstance(value, Decimal):
             return str(value)
         return value
@@ -26,6 +34,13 @@ ScenarioId = Literal["BASE", "DOWNSIDE", "STRESS", "RECOVERY"]
 
 
 class SteeringRequest(SteeringModel):
+    """Input contract for a steering run.
+
+    ``core_info`` must contain rows compatible with the existing RWA calculator. This service
+    does not own regulatory calculation logic; it transforms those rows under scenario
+    assumptions and repeatedly calls ``rwa_calculator``.
+    """
+
     as_of_date: date
     projection_dates: list[date] = Field(min_length=1)
     scenarios: list[ScenarioId] = Field(default_factory=lambda: ["BASE", "DOWNSIDE", "STRESS"])
@@ -35,6 +50,8 @@ class SteeringRequest(SteeringModel):
 
 
 class ScenarioRunSummary(SteeringModel):
+    """Portfolio-level RWA summary for one scenario and projection date."""
+
     scenario_id: str
     scenario_name: str
     regime_label: str
@@ -48,6 +65,12 @@ class ScenarioRunSummary(SteeringModel):
 
 
 class ProjectionRow(SteeringModel):
+    """Exposure-level current versus projected RWA row.
+
+    This shape is designed to be easy to export to CSV or feed into a dashboard. It carries the
+    core steering deltas without embedding the full calculator trace.
+    """
+
     scenario_id: str
     scenario_name: str
     jurisdiction: str
@@ -71,6 +94,13 @@ class ProjectionRow(SteeringModel):
 
 
 class AttributionRow(SteeringModel):
+    """Sequential-revaluation attribution for one portfolio scenario/date.
+
+    Deltas are first-order driver impacts obtained by applying one projection driver at a time.
+    The residual captures interactions between drivers and any logic not yet decomposed, such
+    as future regulatory calendar effects.
+    """
+
     scenario_id: str
     projection_date: date
     rwa_current: Decimal
@@ -85,6 +115,12 @@ class AttributionRow(SteeringModel):
 
 
 class RecommendationRow(SteeringModel):
+    """Decision-support recommendation with simulated RWA saving.
+
+    Recommendations are intentionally not framed as automated decisions. They are ranked
+    proposals for risk/finance review.
+    """
+
     scenario_id: str
     projection_date: date
     id: str
@@ -103,6 +139,8 @@ class RecommendationRow(SteeringModel):
 
 
 class SteeringResponse(SteeringModel):
+    """Full response returned by the steering PoC endpoint."""
+
     methodology: str
     jurisdiction: str
     summaries: list[ScenarioRunSummary]

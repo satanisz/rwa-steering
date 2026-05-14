@@ -12,11 +12,14 @@ from .schemas import ProjectionRequest, ProjectionResponse
 
 
 class ProjectionServiceSettings(BaseSettings):
+    """Environment-overridable paths for projection service reference inputs."""
+
     nccr_mapping_path: Path = NCCR_MAPPING_PATH
     country_info_path: Path = PREPROD_COUNTRY_INFO_PATH
 
 
 def create_app(settings: ProjectionServiceSettings | None = None) -> FastAPI:
+    """Create the FastAPI app with a single projection service instance."""
     resolved_settings = settings or ProjectionServiceSettings()
     service = RwaProjectionService(
         nccr_mapping_path=resolved_settings.nccr_mapping_path,
@@ -35,6 +38,7 @@ def create_app(settings: ProjectionServiceSettings | None = None) -> FastAPI:
 
     @app.get("/health", tags=["service"])
     def health() -> dict[str, str]:
+        """Return lightweight liveness metadata for orchestration probes."""
         return {
             "status": "ok",
             "service": "rwa-projection-service",
@@ -43,6 +47,7 @@ def create_app(settings: ProjectionServiceSettings | None = None) -> FastAPI:
 
     @app.post("/projections/calculate", response_model=ProjectionResponse, tags=["projection"])
     def calculate(request: ProjectionRequest) -> ProjectionResponse:
+        """Run monthly RWA projection for the supplied portfolio slice."""
         return app.state.service.calculate(request)
 
     return app
