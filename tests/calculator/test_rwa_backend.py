@@ -3,9 +3,13 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from rwa_codex.paths import NCCR_MAPPING_PATH, PREPROD_CORE_INFO_PATH, PREPROD_COUNTRY_INFO_PATH
-from rwa_codex.rwa_calculator.calculator import load_core_csv
-from rwa_codex.rwa_calculator.server import calculate_file
+from rwa_calculator.paths import (
+    NCCR_MAPPING_PATH,
+    PREPROD_CORE_INFO_PATH,
+    PREPROD_COUNTRY_INFO_PATH,
+)
+from rwa_calculator.rwa_calculator.calculator import load_core_csv
+from rwa_calculator.rwa_calculator.server import calculate_file
 
 
 class RwaBackendTests(unittest.TestCase):

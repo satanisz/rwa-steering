@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from pydantic_settings import BaseSettings
 
-from rwa_codex.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
+from rwa_calculator.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
 
 from .engine import PROJECTION_ENGINE_VERSION, RwaProjectionService
 from .schemas import ProjectionRequest, ProjectionResponse
@@ -26,7 +26,9 @@ def create_app(settings: ProjectionServiceSettings | None = None) -> FastAPI:
     app = FastAPI(
         title="RWA Projection Service",
         version=PROJECTION_ENGINE_VERSION,
-        description="Projection service for Basel/RWA time series using the rwa_codex calculator.",
+        description=(
+            "Projection service for Basel/RWA time series using the rwa_calculator calculator."
+        ),
     )
     app.state.settings = resolved_settings
     app.state.service = service

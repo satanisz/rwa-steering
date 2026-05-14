@@ -5,8 +5,8 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from rwa_codex.paths import PREPROD_CORE_INFO_PATH
-from rwa_codex.rwa_calculator.fastapi_app import create_app
+from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
+from rwa_calculator.rwa_calculator.fastapi_app import create_app
 
 
 class FastApiMicroserviceTests(unittest.TestCase):

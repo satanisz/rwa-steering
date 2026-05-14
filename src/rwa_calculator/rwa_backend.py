@@ -3,14 +3,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from rwa_codex.paths import (
+from rwa_calculator.paths import (
     NCCR_MAPPING_PATH,
     PREPROD_CORE_INFO_PATH,
     PREPROD_COUNTRY_INFO_PATH,
     REFERENCE_DATA_ROOT,
 )
-from rwa_codex.rwa_calculator.calculator import dumps_json
-from rwa_codex.rwa_calculator.server import build_server, calculate_file
+from rwa_calculator.rwa_calculator.calculator import dumps_json
+from rwa_calculator.rwa_calculator.server import build_server, calculate_file
 
 
 def main() -> None:
@@ -49,7 +49,7 @@ def main() -> None:
     if args.command == "serve-fastapi":
         import uvicorn
 
-        from rwa_codex.rwa_calculator.fastapi_app import ServiceSettings, create_app
+        from rwa_calculator.rwa_calculator.fastapi_app import ServiceSettings, create_app
 
         app = create_app(
             ServiceSettings(

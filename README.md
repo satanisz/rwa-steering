@@ -1,10 +1,9 @@
 # RWA Steering
 
-Python monorepo for two Basel III RWA calculator implementations:
+Python monorepo for Basel III RWA calculation and projection services:
 
-- `src/rwa_bob` - Bob implementation, exposed as `rwa-bob`.
-- `src/rwa_codex` - Codex implementation, exposed as `rwa-codex`.
-- `src/rwa_projection_service` - projection service using `rwa_codex` as `f(x, t)`.
+- `src/rwa_calculator` - RWA calculator backend, exposed as `rwa-calculator`.
+- `src/rwa_projection_service` - projection service using `rwa_calculator` as `f(x, t)`.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
 `pytest` for tests, `ruff` for linting/formatting, and coverage/security tooling suitable for
@@ -24,9 +23,8 @@ uv run pip-audit
 ## CLI
 
 ```powershell
-uv run rwa-bob --output build/bob/results.json --verbose
-uv run rwa-codex calculate --out build/codex/results.json --trace
-uv run rwa-codex serve-fastapi --host 127.0.0.1 --port 8000
+uv run rwa-calculator calculate --out build/calculator/results.json --trace
+uv run rwa-calculator serve-fastapi --host 127.0.0.1 --port 8000
 uv run rwa-projection --host 127.0.0.1 --port 8010
 ```
 

@@ -5,10 +5,10 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from rwa_codex.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
-from rwa_codex.rwa_calculator.calculator import RwaCalculator
-from rwa_codex.rwa_calculator.fastapi_app import CALCULATION_ENGINE_VERSION
-from rwa_codex.rwa_calculator.models import CountryInfoRecord
+from rwa_calculator.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
+from rwa_calculator.rwa_calculator.calculator import RwaCalculator
+from rwa_calculator.rwa_calculator.fastapi_app import CALCULATION_ENGINE_VERSION
+from rwa_calculator.rwa_calculator.models import CountryInfoRecord
 
 from .calendar import projection_dates
 from .schemas import (

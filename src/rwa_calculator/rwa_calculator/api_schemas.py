@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from rwa_codex.rwa_pydantic_schemas import CoreInfoRecord, CountryInfoRecord
+from rwa_calculator.rwa_pydantic_schemas import CoreInfoRecord, CountryInfoRecord
 
 
 class ApiModel(BaseModel):

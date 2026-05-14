@@ -23,9 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-rwa-bob = "rwa_bob.basel3_final_reforms.cli:main"
-rwa-bob-api = "rwa_bob.basel3_final_reforms.api:run"
-rwa-codex = "rwa_codex.rwa_backend:main"
+rwa-calculator = "rwa_calculator.rwa_backend:main"
 rwa-projection = "rwa_projection_service.cli:main"
 
 [dependency-groups]
@@ -49,8 +47,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-rwa_bob = ["*.csv", "*.json", "*.md", "py.typed"]
-rwa_codex = ["*.csv", "*.json", "*.md", "py.typed", "reference_data/**/*.json", "reference_data/**/*.md"]
+rwa_calculator = ["*.csv", "*.json", "*.md", "py.typed", "reference_data/**/*.json", "reference_data/**/*.md"]
 rwa_projection_service = ["py.typed"]
 
 [tool.uv]
@@ -119,8 +116,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "PT009"]
 "src/**/generate_preprod_rwa_dataset.py" = ["S311"]
-"src/rwa_bob/basel3_final_reforms/api.py" = ["S104"]
-"src/rwa_codex/rwa_calculator/server.py" = ["A002"]
+"src/rwa_calculator/rwa_calculator/server.py" = ["A002"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -129,7 +125,7 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["rwa_bob", "rwa_codex", "rwa_projection_service"]
+packages = ["rwa_calculator", "rwa_projection_service"]
 strict = false
 check_untyped_defs = true
 warn_return_any = false

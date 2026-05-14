@@ -6,7 +6,7 @@ import random
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from rwa_codex.rwa_pydantic_schemas import (
+from rwa_calculator.rwa_pydantic_schemas import (
     CORE_INFO_COLUMNS,
     COUNTRY_INFO_COLUMNS,
     CoreInfoRecord,

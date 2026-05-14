@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
-from rwa_codex.paths import PREPROD_CORE_INFO_PATH
+from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
 from rwa_projection_service.engine import RwaProjectionService
 from rwa_projection_service.fastapi_app import create_app
 from rwa_projection_service.schemas import ProjectionRequest

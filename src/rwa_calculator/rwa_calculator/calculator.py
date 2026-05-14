@@ -9,7 +9,7 @@ from pathlib import Path
 from statistics import NormalDist
 from typing import Any
 
-from rwa_codex.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
+from rwa_calculator.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
 
 from .models import (
     OUTPUT_SUCCESS_COLUMNS,

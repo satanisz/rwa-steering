@@ -1,4 +1,4 @@
-"""Projection service built on top of the rwa_codex calculator."""
+"""Projection service built on top of the rwa_calculator calculator."""
 
 from .engine import RwaProjectionService
 

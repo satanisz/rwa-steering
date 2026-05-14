@@ -6,7 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from rwa_codex.paths import REFERENCE_DATA_ROOT
+from rwa_calculator.paths import REFERENCE_DATA_ROOT
 
 from .models import CountryInfoRecord, parse_decimal
 
