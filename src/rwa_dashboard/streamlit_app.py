@@ -42,6 +42,320 @@ STEERING_MODEL_OPTIONS = (
 )
 SCENARIO_OPTIONS = ("BASE", "DOWNSIDE", "STRESS", "RECOVERY")
 FORECAST_ENGINE_OPTIONS = ("VAR", "LSTM_PROXY")
+AGENT_SLOT_NAMES = (
+    "RWA Movement Agent",
+    "Capital Stack Agent",
+    "Data Quality Agent",
+    "Evidence Pack Agent",
+    "Board Commentary Agent",
+)
+
+CONTROL_TOWER_CSS = """
+<style>
+:root {
+    --tower-navy: #06142d;
+    --tower-blue: #0b5cff;
+    --tower-border: #dce5f2;
+    --tower-muted: #5f6f89;
+    --tower-text: #07142f;
+    --tower-panel: #ffffff;
+    --tower-bg: #f6f8fc;
+    --tower-success: #16a34a;
+    --tower-warn: #d97706;
+}
+
+.stApp {
+    background: var(--tower-bg);
+    color: var(--tower-text);
+}
+
+[data-testid="stHeader"] {
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid var(--tower-border);
+}
+
+[data-testid="stAppViewContainer"] > .main .block-container {
+    max-width: 100%;
+    padding: 1.1rem 1.6rem 2rem;
+}
+
+section[data-testid="stSidebar"] > div:first-child {
+    background: linear-gradient(180deg, #071a38 0%, #031024 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span {
+    color: #edf4ff;
+}
+
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+    color: #edf4ff;
+}
+
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] [data-baseweb="select"] span,
+section[data-testid="stSidebar"] [data-baseweb="input"] span {
+    color: var(--tower-text);
+}
+
+.tower-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.25rem 0 1.35rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.tower-logo {
+    width: 2.35rem;
+    height: 2.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+.tower-brand-title {
+    font-weight: 800;
+    font-size: 1rem;
+    line-height: 1.15;
+}
+
+.tower-brand-subtitle,
+.sidebar-section-label {
+    color: #aab8cf;
+    font-size: 0.78rem;
+}
+
+.sidebar-section-label {
+    margin: 1rem 0 0.4rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.tower-nav-item {
+    padding: 0.58rem 0.7rem;
+    margin: 0.12rem 0;
+    border-radius: 8px;
+    color: #dce8ff;
+    font-size: 0.88rem;
+}
+
+.tower-nav-item.active {
+    background: linear-gradient(90deg, rgba(11, 92, 255, 0.95), rgba(98, 65, 220, 0.82));
+    color: #ffffff;
+    font-weight: 750;
+}
+
+.tower-sidebar-status {
+    margin-top: 1rem;
+    padding: 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.48rem;
+    font-size: 0.8rem;
+}
+
+.status-ok {
+    color: #22c55e;
+    font-weight: 700;
+}
+
+.tower-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.15rem 0 0.85rem;
+    border-bottom: 1px solid var(--tower-border);
+}
+
+.tower-breadcrumb {
+    color: #354461;
+    font-size: 0.86rem;
+}
+
+.tower-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.tower-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.32rem 0.58rem;
+    border: 1px solid var(--tower-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: #243452;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.tower-pill.success {
+    background: #eaf8ef;
+    color: #087433;
+    border-color: #c8efd4;
+}
+
+.tower-title-row {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.2rem 0 0.8rem;
+}
+
+.tower-title {
+    font-size: 2rem;
+    line-height: 1.1;
+    font-weight: 820;
+    color: var(--tower-text);
+}
+
+.tower-subtitle {
+    margin-top: 0.35rem;
+    color: var(--tower-muted);
+    font-size: 0.96rem;
+}
+
+[data-testid="stMetric"] {
+    min-height: 112px;
+    padding: 1rem 1.08rem;
+    background: var(--tower-panel);
+    border: 1px solid var(--tower-border);
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(8, 25, 56, 0.04);
+}
+
+[data-testid="stMetricLabel"] {
+    color: #52637d;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0;
+}
+
+[data-testid="stMetricValue"] {
+    color: var(--tower-text);
+    font-weight: 820;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-color: var(--tower-border);
+    border-radius: 8px;
+    background: var(--tower-panel);
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.65rem;
+    border-bottom: 1px solid var(--tower-border);
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px 8px 0 0;
+    padding: 0.65rem 0.9rem;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--tower-blue);
+    background: #eef4ff;
+}
+
+.stButton > button,
+.stDownloadButton > button {
+    border-radius: 8px;
+    border: 1px solid var(--tower-border);
+    font-weight: 750;
+}
+
+.agent-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.agent-card,
+.briefing-card,
+.trace-card {
+    border: 1px solid var(--tower-border);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 0.9rem;
+    box-shadow: 0 10px 24px rgba(8, 25, 56, 0.04);
+}
+
+.agent-card h4,
+.briefing-card h4,
+.trace-card h4 {
+    margin: 0 0 0.35rem;
+    color: var(--tower-text);
+    font-size: 0.95rem;
+}
+
+.agent-card p,
+.briefing-card p,
+.trace-card p {
+    margin: 0.25rem 0 0;
+    color: var(--tower-muted);
+    font-size: 0.82rem;
+}
+
+.agent-status {
+    display: inline-flex;
+    margin-top: 0.7rem;
+    padding: 0.22rem 0.5rem;
+    border-radius: 8px;
+    background: #eaf8ef;
+    color: #087433;
+    font-size: 0.75rem;
+    font-weight: 780;
+}
+
+.agent-status.reserved {
+    background: #eef4ff;
+    color: #0b5cff;
+}
+
+.evidence-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+    .tower-topbar,
+    .tower-title-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .agent-grid,
+    .evidence-strip {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+"""
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -134,12 +448,96 @@ def cached_input_package():
     return input_package_overview()
 
 
+def apply_control_tower_theme() -> None:
+    """Apply the Control Tower visual layer used by the dashboard shell."""
+    st.markdown(CONTROL_TOWER_CSS, unsafe_allow_html=True)
+
+
+def render_control_tower_sidebar(overview) -> None:
+    """Render static navigation and package health in the Streamlit sidebar."""
+    generated_files = len(overview.manifest["generated_files"])
+    quality_gates = len(overview.validation_report["quality_gates"])
+    validation_status = overview.manifest["validation_status"]
+    st.sidebar.markdown(
+        f"""
+        <div class="tower-brand">
+            <div class="tower-logo">RWA</div>
+            <div>
+                <div class="tower-brand-title">RWA Control Tower</div>
+                <div class="tower-brand-subtitle">RWA Capital Engine</div>
+            </div>
+        </div>
+        <div class="sidebar-section-label">Navigation</div>
+        <div class="tower-nav-item">Exposure Upload</div>
+        <div class="tower-nav-item active">RWA Dashboard</div>
+        <div class="tower-nav-item">Portfolio Analytics</div>
+        <div class="tower-nav-item">Scenario Analysis</div>
+        <div class="tower-nav-item">Data Lineage</div>
+        <div class="tower-nav-item">Reports & Evidence</div>
+        <div class="tower-nav-item">RWA Intelligence Briefing</div>
+        <div class="sidebar-section-label">Controls</div>
+        <div class="tower-sidebar-status">
+            <strong>System status</strong>
+            <div class="status-row">
+                <span>Input package</span>
+                <span class="status-ok">{validation_status}</span>
+            </div>
+            <div class="status-row">
+                <span>Prepared files</span><span>{generated_files}</span>
+            </div>
+            <div class="status-row">
+                <span>Quality gates</span><span>{quality_gates}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_page_header(
+    as_of_date: date,
+    selected_model: str,
+    scenario_id: str,
+    overview,
+) -> None:
+    """Render the dashboard topbar and page title in the concept style."""
+    package_version = overview.manifest["version_id"]
+    validation_status = overview.manifest["validation_status"]
+    st.markdown(
+        f"""
+        <div class="tower-topbar">
+            <div class="tower-breadcrumb">
+                Home &gt; RWA Dashboard &gt; {selected_model}
+            </div>
+            <div class="tower-actions">
+                <span class="tower-pill success">PREPROD</span>
+                <span class="tower-pill">Reporting date {as_of_date.isoformat()}</span>
+                <span class="tower-pill">Scenario {scenario_id}</span>
+                <span class="tower-pill">Inputs {validation_status}</span>
+            </div>
+        </div>
+        <div class="tower-title-row">
+            <div>
+                <div class="tower-title">RWA Control Tower</div>
+                <div class="tower-subtitle">
+                    Prepared input package {package_version}; calculations use generated CSV data
+                    and calculator outputs, not inline fallback values.
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     """Render the RWA steering simulation dashboard."""
-    st.set_page_config(page_title="RWA Steering", layout="wide")
+    st.set_page_config(page_title="RWA Control Tower", layout="wide")
+    apply_control_tower_theme()
 
     default_date = default_as_of_date()
-    st.sidebar.title("Parametry")
+    overview = cached_input_package()
+    render_control_tower_sidebar(overview)
     as_of_date = st.sidebar.date_input("Dzień kalkulacji", value=default_date)
     selected_model = model_selector()
     scenario_id = st.sidebar.selectbox(
@@ -149,21 +547,25 @@ def main() -> None:
     )
 
     snapshot = cached_current(as_of_date)
+    capital = cached_regulatory_capital(as_of_date)
 
-    st.title("RWA Steering Dashboard")
-    st.caption(f"Dane syntetyczne pre-prod, as-of {as_of_date.isoformat()}")
+    render_page_header(as_of_date, selected_model, str(scenario_id), overview)
 
     tab_current, tab_model, tab_data = st.tabs(["RWA dzisiaj", "Steering model", "Dane i jakość"])
 
     with tab_current:
         render_current(snapshot)
-        render_regulatory_capital(cached_regulatory_capital(as_of_date))
+        render_regulatory_capital(capital)
 
     with tab_model:
         render_selected_model(selected_model, as_of_date, str(scenario_id))
 
     with tab_data:
-        render_input_package(cached_input_package())
+        agent_view, data_view = st.tabs(["RWA Intelligence Briefing", "Data & Evidence"])
+        with agent_view:
+            render_agent_briefing(snapshot, capital, overview, as_of_date)
+        with data_view:
+            render_input_package(overview)
 
 
 def model_selector() -> str:
@@ -791,6 +1193,190 @@ def render_steering(steering) -> None:
     )
     st.altair_chart(savings_chart, width="stretch")
     st.dataframe(format_table(steering.recommendations), width="stretch", hide_index=True)
+
+
+def render_agent_briefing(snapshot, capital, overview, as_of_date: date) -> None:
+    """Render the agent-ready management briefing workspace from calculated data."""
+    output_floor = capital.output_floor
+    leverage = capital.leverage_ratio
+    quality_summary = overview.data_quality_summary.copy()
+    blocking_issues = (
+        int(quality_summary.loc[quality_summary["is_blocking"], "count"].sum())
+        if not quality_summary.empty
+        else 0
+    )
+    quality_issues = int(overview.data_quality_flags.shape[0])
+    generated_files = len(overview.manifest["generated_files"])
+
+    st.markdown(
+        f"""
+        <div class="briefing-card">
+            <h4>5. RWA Intelligence Briefing</h4>
+            <p>
+                Agent-ready workspace for reporting date {as_of_date.isoformat()}.
+                The visible figures are calculated from the prepared input package and
+                current calculator outputs; agent narrative output is intentionally empty
+                until the agent services are added.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_total, col_cet1, col_capital, col_quality, col_confidence = st.columns(5)
+    col_total.metric("Total RWA current", format_money(output_floor["applicable_rwa"]))
+    col_cet1.metric("CET1 ratio", format_pct(output_floor["cet1_ratio"]))
+    col_capital.metric("Total capital ratio", format_pct(output_floor["total_capital_ratio"]))
+    col_quality.metric("Quality findings", quality_issues, delta=f"{blocking_issues} blocking")
+    col_confidence.metric("Prepared files", generated_files)
+
+    left, right = st.columns([1.08, 1])
+    with left:
+        st.subheader("RWA movement attribution inputs")
+        entity_frame = snapshot.by_entity.sort_values(RWA_FINAL_FIELD, ascending=False).copy()
+        entity_chart = (
+            alt.Chart(entity_frame)
+            .mark_bar()
+            .encode(
+                x=alt.X(f"{RWA_FINAL_FIELD}:Q", title="RWA"),
+                y=alt.Y("entity_class:N", title=None, sort="-x"),
+                color=alt.Color("entity_class:N", legend=None),
+                tooltip=[
+                    "entity_class",
+                    "asset_count",
+                    alt.Tooltip("exposure_amount:Q", format=",.0f"),
+                    alt.Tooltip(f"{RWA_FINAL_FIELD}:Q", format=",.0f"),
+                    alt.Tooltip("rwa_density:Q", format=".2%"),
+                ],
+            )
+        )
+        st.altair_chart(entity_chart, width="stretch")
+        st.dataframe(format_table(entity_frame), width="stretch", hide_index=True)
+
+    with right:
+        st.subheader("Agent workspace")
+        st.markdown(agent_slot_cards(snapshot, capital, overview), unsafe_allow_html=True)
+        st.subheader("Capital briefing context")
+        st.dataframe(format_table(capital.capital_stack), width="stretch", hide_index=True)
+
+    lower_left, lower_right = st.columns([1, 1.08])
+    with lower_left:
+        st.subheader("Data quality findings")
+        st.dataframe(format_table(quality_summary), width="stretch", hide_index=True)
+    with lower_right:
+        st.subheader("Agent output panel")
+        cet1_ratio_text = format_pct(output_floor["cet1_ratio"])
+        leverage_ratio_text = format_pct(leverage["leverage_ratio"])
+        st.markdown(
+            f"""
+            <div class="briefing-card">
+                <h4>Board Commentary Agent</h4>
+                <p>Status: reserved for the next implementation step.</p>
+                <p>Current inputs available: CET1 {cet1_ratio_text},
+                leverage {leverage_ratio_text},
+                {len(capital.capital_stack)} capital-stack components,
+                {quality_issues} data-quality findings.</p>
+                <span class="agent-status reserved">No generated commentary persisted</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.subheader("Evidence & traceability")
+    st.markdown(evidence_trace_strip(snapshot, capital, overview), unsafe_allow_html=True)
+    for note in capital.methodology_notes:
+        st.caption(note)
+
+
+def agent_slot_cards(snapshot, capital, overview) -> str:
+    """Return HTML cards for the future agent registry slots."""
+    validation_status = overview.manifest["validation_status"]
+    hash_count = len(overview.manifest.get("file_sha256", {}))
+    source_count = len(overview.manifest.get("source_files", []))
+    quality_issues = int(overview.data_quality_flags.shape[0])
+    slots = [
+        {
+            "name": AGENT_SLOT_NAMES[0],
+            "body": (
+                f"{snapshot.summary['input_data_records']} exposure rows, "
+                f"{len(snapshot.by_entity)} exposure-class cuts and top RWA contributors."
+            ),
+            "status": "Slot ready",
+            "class": "",
+        },
+        {
+            "name": AGENT_SLOT_NAMES[1],
+            "body": (
+                f"{len(capital.capital_stack)} capital modules, CVA, operational risk, "
+                "output floor and leverage ratio context."
+            ),
+            "status": "Slot ready",
+            "class": "",
+        },
+        {
+            "name": AGENT_SLOT_NAMES[2],
+            "body": (
+                f"{quality_issues} prepared data-quality findings; package {validation_status}."
+            ),
+            "status": "Slot ready",
+            "class": "",
+        },
+        {
+            "name": AGENT_SLOT_NAMES[3],
+            "body": f"{hash_count} file hashes and {source_count} source-file references.",
+            "status": "Slot ready",
+            "class": "",
+        },
+        {
+            "name": AGENT_SLOT_NAMES[4],
+            "body": "Reserved output surface for generated management commentary.",
+            "status": "Reserved",
+            "class": " reserved",
+        },
+    ]
+    cards = [
+        (
+            '<div class="agent-card">'
+            f"<h4>{slot['name']}</h4>"
+            f"<p>{slot['body']}</p>"
+            f'<span class="agent-status{slot["class"]}">{slot["status"]}</span>'
+            "</div>"
+        )
+        for slot in slots
+    ]
+    return f'<div class="agent-grid">{"".join(cards)}</div>'
+
+
+def evidence_trace_strip(snapshot, capital, overview) -> str:
+    """Return concept-style traceability cards for the briefing footer."""
+    file_hashes = overview.manifest.get("file_sha256", {})
+    generated_files = len(overview.manifest["generated_files"])
+    quality_gates = len(overview.validation_report["quality_gates"])
+    validation_status = overview.manifest["validation_status"]
+    input_records = snapshot.summary["input_data_records"]
+    cards = [
+        {
+            "title": "Calculation context",
+            "body": f"{input_records} rows, as-of {snapshot.as_of_date.isoformat()}",
+        },
+        {
+            "title": "Prepared inputs",
+            "body": f"{generated_files} generated files, {len(file_hashes)} hashes",
+        },
+        {
+            "title": "Applied modules",
+            "body": ", ".join(capital.capital_stack["component"].tolist()),
+        },
+        {
+            "title": "Validation gates",
+            "body": f"{quality_gates} gates, {validation_status}",
+        },
+    ]
+    html_cards = [
+        (f'<div class="trace-card"><h4>{card["title"]}</h4><p>{card["body"]}</p></div>')
+        for card in cards
+    ]
+    return f'<div class="evidence-strip">{"".join(html_cards)}</div>'
 
 
 def render_input_package(overview) -> None:

@@ -14,7 +14,7 @@ from rwa_dashboard.data import (
     runoff_projection,
     steering_simulation,
 )
-from rwa_dashboard.streamlit_app import STEERING_MODEL_OPTIONS
+from rwa_dashboard.streamlit_app import AGENT_SLOT_NAMES, STEERING_MODEL_OPTIONS
 
 
 def test_current_rwa_snapshot_aggregates_preprod_rows() -> None:
@@ -124,6 +124,16 @@ def test_dashboard_frontend_exposes_all_steering_model_options() -> None:
         "Forecast Monte Carlo",
         "Scenario steering",
         "RATS optimizer",
+    )
+
+
+def test_dashboard_frontend_reserves_agent_slots() -> None:
+    assert AGENT_SLOT_NAMES == (
+        "RWA Movement Agent",
+        "Capital Stack Agent",
+        "Data Quality Agent",
+        "Evidence Pack Agent",
+        "Board Commentary Agent",
     )
 
 

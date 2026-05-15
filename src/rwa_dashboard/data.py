@@ -206,7 +206,7 @@ def available_projection_dates(as_of_date: date) -> list[date]:
 
 
 def load_portfolio_rows(row_limit: int | None = None) -> list[dict[str, str]]:
-    """Load the synthetic pre-prod portfolio rows used by all demo services."""
+    """Load the prepared pre-prod portfolio rows used by dashboard services."""
     rows = load_core_csv(PREPROD_CORE_INFO_PATH)
     return rows[:row_limit] if row_limit is not None else rows
 
