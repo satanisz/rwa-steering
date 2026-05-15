@@ -13,11 +13,10 @@ services:
   services.
 
 Methodology positioning: this is a proxy calculator and decision-support control tower, not a full
-regulatory-grade RWA engine. On the `legacy_prep` branch, legacy methodology means only
-`Run-off f(x,t)`. Forecast, steering and RATS remain PoC decision-support methods. The app uses
-prepared pre-prod inputs, generated scenario assumptions and deterministic calculator outputs; it
-does not replace bank-approved regulatory reporting, model validation, jurisdictional rule
-interpretation or supervisory sign-off.
+regulatory-grade RWA engine. On the `legacy_prep` branch, the Streamlit legacy methodology is only
+`Run-off f(x,t)`. The app uses prepared pre-prod inputs, generated scenario assumptions and
+deterministic calculator outputs; it does not replace bank-approved regulatory reporting, model
+validation, jurisdictional rule interpretation or supervisory sign-off.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
 `pytest` for tests, `ruff` for linting/formatting, and coverage/security tooling suitable for
@@ -70,17 +69,12 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard exposes the calculator maturity scope, a single steering model switch for
-the PoC model families and a separate regulatory capital stack panel. On `legacy_prep`, only
-`Run-off f(x,t)` is labelled as the legacy methodology:
+The Streamlit dashboard exposes the calculator maturity scope, the `Run-off f(x,t)` legacy
+methodology and a separate regulatory capital stack panel:
 
 - current row-level credit RWA proxy plus aggregate applicable RWA
 - `Run-off f(x,t)` for the existing book using monthly maturity roll-forward; this is the only
   legacy methodology on this branch
-- `Forecast scenarios` for all generated BASE / DOWNSIDE / STRESS / RECOVERY cases
-- `Forecast Monte Carlo` using the VAR / `LSTM_PROXY` forecast service
-- `Scenario steering` for generated-input projections, attribution and recommendations
-- `RATS optimizer` for risk-aware RWA strategy search
 - aggregate output floor, CVA, operational risk and leverage-ratio views
 - generated input package quality diagnostics
 

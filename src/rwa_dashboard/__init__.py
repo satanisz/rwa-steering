@@ -1,4 +1,4 @@
-"""Dashboard service for current RWA, monthly projection and steering simulation."""
+"""Dashboard service for current RWA, run-off projection and input package diagnostics."""
 
 __all__ = ["__version__"]
 
