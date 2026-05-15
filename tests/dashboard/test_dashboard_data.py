@@ -10,6 +10,7 @@ from rwa_dashboard.data import (
     input_package_overview,
     monte_carlo_forecast,
     rats_optimization,
+    regulatory_capital_snapshot,
     runoff_projection,
     steering_simulation,
 )
@@ -102,10 +103,25 @@ def test_rats_dashboard_data_exposes_strategy_and_convergence() -> None:
     assert rats.package_status == "PASSED"
 
 
-def test_dashboard_frontend_exposes_three_steering_model_options() -> None:
+def test_regulatory_capital_dashboard_data_exposes_final_reform_modules() -> None:
+    capital = regulatory_capital_snapshot(date(2026, 5, 15), row_limit=20)
+
+    assert capital.output_floor["floor_calibration"] == 0.7
+    assert capital.output_floor["applicable_rwa"] >= capital.output_floor["pre_floor_rwa"]
+    assert capital.operational_risk["operational_risk_rwa"] > 0
+    assert capital.cva_risk["approach_used"] == "BA_FULL"
+    assert capital.leverage_ratio["exposure_measure"] > 0
+    assert {"Credit RWA pre-floor", "CVA RWA", "Operational risk RWA"}.issubset(
+        set(capital.capital_stack["component"])
+    )
+
+
+def test_dashboard_frontend_exposes_all_steering_model_options() -> None:
     assert STEERING_MODEL_OPTIONS == (
         "Run-off f(x,t)",
+        "Forecast scenarios",
         "Forecast Monte Carlo",
+        "Scenario steering",
         "RATS optimizer",
     )
 

@@ -61,12 +61,16 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard exposes a single steering model switch for the three PoC model families:
+The Streamlit dashboard exposes a single steering model switch for the PoC model families and a
+separate regulatory capital stack panel:
 
-- current Basel 3.1 final RWA
+- current row-level credit RWA proxy plus aggregate applicable RWA
 - `Run-off f(x,t)` for the existing book using monthly maturity roll-forward
+- `Forecast scenarios` for all generated BASE / DOWNSIDE / STRESS / RECOVERY cases
 - `Forecast Monte Carlo` using the VAR / `LSTM_PROXY` forecast service
+- `Scenario steering` for generated-input projections, attribution and recommendations
 - `RATS optimizer` for risk-aware RWA strategy search
+- aggregate output floor, CVA, operational risk and leverage-ratio views
 - generated input package quality diagnostics
 
 Projection endpoint:
@@ -91,6 +95,16 @@ RATS endpoint:
 
 ```text
 POST http://127.0.0.1:8030/v1/rats/optimize
+```
+
+Capital module endpoints:
+
+```text
+POST http://127.0.0.1:8000/v1/output-floor/calculate
+POST http://127.0.0.1:8000/v1/operational-risk/calculate
+POST http://127.0.0.1:8000/v1/cva/calculate
+POST http://127.0.0.1:8000/v1/leverage-ratio/calculate
+POST http://127.0.0.1:8000/v1/capital/portfolio
 ```
 
 The legacy `POST /steering/run` route is still available for compatibility during the PoC.

@@ -14,6 +14,25 @@ from .api_schemas import (
     pydantic_row_to_engine_row,
 )
 from .calculator import RwaCalculator
+from .capital import (
+    calculate_cva_risk,
+    calculate_leverage_ratio,
+    calculate_operational_risk,
+    calculate_output_floor,
+    calculate_portfolio_capital,
+)
+from .capital_models import (
+    CvaRiskRequest,
+    CvaRiskResponse,
+    LeverageRatioRequest,
+    LeverageRatioResponse,
+    OperationalRiskRequest,
+    OperationalRiskResponse,
+    OutputFloorRequest,
+    OutputFloorResponse,
+    PortfolioCapitalRequest,
+    PortfolioCapitalResponse,
+)
 from .models import CountryInfoRecord
 from .normal_distribution import NormalDistribution
 from .pandera_validation import read_core_csv_bytes, read_country_csv_bytes
@@ -195,6 +214,50 @@ def create_app(settings: ServiceSettings | None = None) -> FastAPI:
             calculation_engine_version=CALCULATION_ENGINE_VERSION,
             **payload,
         )
+
+    @app.post(
+        "/v1/output-floor/calculate",
+        response_model=OutputFloorResponse,
+        tags=["capital"],
+    )
+    def output_floor(request: OutputFloorRequest) -> OutputFloorResponse:
+        """Calculate aggregate output floor using portfolio-level RWA inputs."""
+        return calculate_output_floor(request)
+
+    @app.post(
+        "/v1/operational-risk/calculate",
+        response_model=OperationalRiskResponse,
+        tags=["capital"],
+    )
+    def operational_risk(request: OperationalRiskRequest) -> OperationalRiskResponse:
+        """Calculate operational risk BI, BIC, ILM, ORC and RWA."""
+        return calculate_operational_risk(request)
+
+    @app.post("/v1/cva/calculate", response_model=CvaRiskResponse, tags=["capital"])
+    def cva_risk(request: CvaRiskRequest) -> CvaRiskResponse:
+        """Calculate CVA capital under materiality, BA-CVA or SA-CVA paths."""
+        try:
+            return calculate_cva_risk(request)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post(
+        "/v1/leverage-ratio/calculate",
+        response_model=LeverageRatioResponse,
+        tags=["capital"],
+    )
+    def leverage_ratio(request: LeverageRatioRequest) -> LeverageRatioResponse:
+        """Calculate leverage ratio exposure measure and buffer shortfall."""
+        return calculate_leverage_ratio(request)
+
+    @app.post(
+        "/v1/capital/portfolio",
+        response_model=PortfolioCapitalResponse,
+        tags=["capital"],
+    )
+    def portfolio_capital(request: PortfolioCapitalRequest) -> PortfolioCapitalResponse:
+        """Aggregate risk-type RWAs and apply the output floor."""
+        return calculate_portfolio_capital(request)
 
     return app
 

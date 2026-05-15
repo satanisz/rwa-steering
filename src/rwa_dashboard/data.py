@@ -10,6 +10,21 @@ import pandas as pd
 
 from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
 from rwa_calculator.rwa_calculator.calculator import RwaCalculator, load_core_csv
+from rwa_calculator.rwa_calculator.capital import (
+    calculate_cva_risk,
+    calculate_leverage_ratio,
+    calculate_operational_risk,
+    calculate_portfolio_capital,
+)
+from rwa_calculator.rwa_calculator.capital_models import (
+    BusinessIndicatorYear,
+    CvaNettingSet,
+    CvaRiskRequest,
+    LeverageRatioRequest,
+    OffBalanceSheetItem,
+    OperationalRiskRequest,
+    PortfolioCapitalRequest,
+)
 from rwa_forecast_service.engine import RwaForecastService
 from rwa_forecast_service.schemas import ForecastRequest
 from rwa_projection_service.engine import RwaProjectionService
@@ -149,6 +164,20 @@ class RATSDashboardData:
     limitations: list[str]
     package_version: str | None
     package_status: str | None
+
+
+@dataclass(frozen=True)
+class RegulatoryCapitalDashboardData:
+    """Dashboard-ready Basel III final-reform capital stack beyond credit RWA."""
+
+    as_of_date: date
+    selected_asset_count: int
+    capital_stack: pd.DataFrame
+    output_floor: dict[str, Any]
+    operational_risk: dict[str, Any]
+    cva_risk: dict[str, Any]
+    leverage_ratio: dict[str, Any]
+    methodology_notes: list[str]
 
 
 @dataclass(frozen=True)
@@ -493,6 +522,135 @@ def rats_optimization(
     )
 
 
+def regulatory_capital_snapshot(
+    as_of_date: date,
+    row_limit: int | None = None,
+) -> RegulatoryCapitalDashboardData:
+    """Calculate portfolio-level CVA, operational risk, output floor and leverage ratio.
+
+    The credit RWA inputs come from the calculator output. The current synthetic portfolio does
+    not contain bank financial statement, derivative netting-set or leverage exposure feeds, so
+    this dashboard helper derives transparent demo inputs from the pre-prod book. API clients can
+    call the underlying modules with explicit production feeds through the calculator service.
+    """
+    current = current_rwa_snapshot(as_of_date, row_limit=row_limit)
+    results = current.results
+    total_exposure = Decimal(str(current.summary["total_exposure_amount"]))
+    credit_pre_floor = Decimal(str(results[RWA_FOUNDATION_FIELD].sum()))
+    credit_standardised = Decimal(str(results[RWA_STANDARDISED_FIELD].sum()))
+    derivative_ead = Decimal(
+        str(results.loc[results["entity_class"].isin(["BANK", "FI"]), "exposure_amount"].sum())
+    ) * Decimal("0.05")
+    cva_result = calculate_cva_risk(
+        CvaRiskRequest(
+            calculation_date=as_of_date,
+            approach="BA_FULL",
+            aggregate_non_centrally_cleared_derivative_notional=derivative_ead * Decimal("10"),
+            netting_sets=[
+                CvaNettingSet(
+                    counterparty_id="DEMO_BANK_FI_NETTING_SETS",
+                    ead=derivative_ead,
+                    maturity_years=Decimal("2.5"),
+                    risk_weight=Decimal("0.05"),
+                )
+            ],
+        )
+    )
+    business_indicator = total_exposure * Decimal("0.035")
+    operational_result = calculate_operational_risk(
+        OperationalRiskRequest(
+            calculation_date=as_of_date,
+            annual_business_indicators=[
+                BusinessIndicatorYear(
+                    year=as_of_date.year - 2,
+                    interest_leases_dividend_component=business_indicator * Decimal("0.52"),
+                    services_component=business_indicator * Decimal("0.34"),
+                    financial_component=business_indicator * Decimal("0.14"),
+                ),
+                BusinessIndicatorYear(
+                    year=as_of_date.year - 1,
+                    interest_leases_dividend_component=business_indicator * Decimal("0.54"),
+                    services_component=business_indicator * Decimal("0.33"),
+                    financial_component=business_indicator * Decimal("0.13"),
+                ),
+                BusinessIndicatorYear(
+                    year=as_of_date.year,
+                    interest_leases_dividend_component=business_indicator * Decimal("0.51"),
+                    services_component=business_indicator * Decimal("0.35"),
+                    financial_component=business_indicator * Decimal("0.14"),
+                ),
+            ],
+            annual_operational_losses=[
+                business_indicator * Decimal("0.0025"),
+                business_indicator * Decimal("0.0030"),
+                business_indicator * Decimal("0.0020"),
+            ],
+        )
+    )
+    cva_rwa = Decimal(str(cva_result.cva_rwa))
+    operational_rwa = Decimal(str(operational_result.operational_risk_rwa))
+    pre_floor = credit_pre_floor + cva_rwa + operational_rwa
+    cet1_capital = pre_floor * Decimal("0.145")
+    tier1_capital = pre_floor * Decimal("0.165")
+    total_capital = pre_floor * Decimal("0.185")
+    portfolio_result = calculate_portfolio_capital(
+        PortfolioCapitalRequest(
+            calculation_date=as_of_date,
+            credit_rwa_pre_floor=credit_pre_floor,
+            credit_rwa_standardised=credit_standardised,
+            cva_rwa=cva_rwa,
+            operational_rwa=operational_rwa,
+            cet1_capital=cet1_capital,
+            tier1_capital=tier1_capital,
+            total_capital=total_capital,
+        )
+    )
+    leverage_result = calculate_leverage_ratio(
+        LeverageRatioRequest(
+            calculation_date=as_of_date,
+            tier1_capital=tier1_capital,
+            on_balance_sheet_exposures=total_exposure,
+            derivative_replacement_cost=derivative_ead * Decimal("0.20"),
+            derivative_potential_future_exposure=derivative_ead * Decimal("0.80"),
+            off_balance_sheet_items=[
+                OffBalanceSheetItem(
+                    item_id="DEMO_UNDRAWN_COMMITMENTS",
+                    notional=total_exposure * Decimal("0.10"),
+                    credit_conversion_factor=Decimal("0.40"),
+                )
+            ],
+        )
+    )
+    capital_stack = pd.DataFrame(
+        [
+            {"component": "Credit RWA pre-floor", "rwa": float(credit_pre_floor)},
+            {"component": "CVA RWA", "rwa": float(cva_rwa)},
+            {"component": "Operational risk RWA", "rwa": float(operational_rwa)},
+            {
+                "component": "Output floor add-on",
+                "rwa": float(portfolio_result.output_floor.output_floor_amount),
+            },
+        ]
+    )
+    return RegulatoryCapitalDashboardData(
+        as_of_date=as_of_date,
+        selected_asset_count=len(results),
+        capital_stack=capital_stack,
+        output_floor=_capital_model_dict(portfolio_result.output_floor),
+        operational_risk=_capital_model_dict(operational_result),
+        cva_risk=_capital_model_dict(cva_result),
+        leverage_ratio=_capital_model_dict(leverage_result),
+        methodology_notes=[
+            "Credit RWA uses calculator output; output floor is aggregate and date phased.",
+            "Operational, CVA and leverage dashboard inputs are transparent demo assumptions.",
+            (
+                "Production use should replace demo assumptions with finance, derivatives "
+                "and leverage feeds."
+            ),
+        ],
+    )
+
+
 def input_package_overview() -> InputPackageOverview:
     """Load generated-input metadata and row-level quality flags for audit panels."""
     package = load_steering_input_package()
@@ -762,6 +920,22 @@ def _model_dict(model: Any) -> dict[str, Any]:
     return {
         key: float(value) if isinstance(value, Decimal) else value for key, value in data.items()
     }
+
+
+def _capital_model_dict(model: Any) -> dict[str, Any]:
+    """Convert nested capital response models to scalar dashboard values."""
+    data = model.model_dump(mode="python")
+    converted: dict[str, Any] = {}
+    for key, value in data.items():
+        if key == "trace":
+            continue
+        if isinstance(value, Decimal):
+            converted[key] = float(value)
+        elif isinstance(value, date):
+            converted[key] = value.isoformat()
+        else:
+            converted[key] = value
+    return converted
 
 
 def _coerce_numeric_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> None:

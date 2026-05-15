@@ -13,22 +13,33 @@ from rwa_dashboard.data import (
     available_projection_dates,
     current_rwa_snapshot,
     default_as_of_date,
+    forecast_projection,
     input_package_overview,
     monte_carlo_forecast,
     rats_optimization,
+    regulatory_capital_snapshot,
     runoff_projection,
+    steering_simulation,
 )
 
 RWA_LABELS = {
     "basel_3_0_rwa": "Basel 3.0",
     RWA_FOUNDATION_FIELD: "Basel 3.1 foundation",
     RWA_STANDARDISED_FIELD: "Basel 3.1 standardised",
-    RWA_FINAL_FIELD: "Basel 3.1 final",
+    RWA_FINAL_FIELD: "Basel 3.1 row-level proxy",
 }
 MODEL_RUNOFF = "Run-off f(x,t)"
+MODEL_SCENARIO_FORECAST = "Forecast scenarios"
 MODEL_FORECAST = "Forecast Monte Carlo"
+MODEL_STEERING = "Scenario steering"
 MODEL_RATS = "RATS optimizer"
-STEERING_MODEL_OPTIONS = (MODEL_RUNOFF, MODEL_FORECAST, MODEL_RATS)
+STEERING_MODEL_OPTIONS = (
+    MODEL_RUNOFF,
+    MODEL_SCENARIO_FORECAST,
+    MODEL_FORECAST,
+    MODEL_STEERING,
+    MODEL_RATS,
+)
 SCENARIO_OPTIONS = ("BASE", "DOWNSIDE", "STRESS", "RECOVERY")
 FORECAST_ENGINE_OPTIONS = ("VAR", "LSTM_PROXY")
 
@@ -43,6 +54,12 @@ def cached_current(as_of_date: date):
 def cached_runoff_projection(as_of_date: date, months: int, assets: int):
     """Cache closed-book run-off projection output across Streamlit reruns."""
     return runoff_projection(as_of_date, projected_months=months, top_n_assets=assets)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_forecast_projection(as_of_date: date, assets: int):
+    """Cache deterministic multi-scenario forecast output across Streamlit reruns."""
+    return forecast_projection(as_of_date, scenarios=list(SCENARIO_OPTIONS), top_n_assets=assets)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -90,6 +107,28 @@ def cached_rats_optimization(
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def cached_steering_simulation(
+    as_of_date: date,
+    scenario_id: str,
+    assets: int,
+    recommendations: int,
+):
+    """Cache deterministic steering scenario output across Streamlit reruns."""
+    return steering_simulation(
+        as_of_date=as_of_date,
+        scenarios=[scenario_id],
+        top_n_assets=assets,
+        top_n_recommendations=recommendations,
+    )
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_regulatory_capital(as_of_date: date):
+    """Cache portfolio-level Basel capital module output across Streamlit reruns."""
+    return regulatory_capital_snapshot(as_of_date)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_input_package():
     """Cache generated-input metadata across Streamlit reruns."""
     return input_package_overview()
@@ -118,6 +157,7 @@ def main() -> None:
 
     with tab_current:
         render_current(snapshot)
+        render_regulatory_capital(cached_regulatory_capital(as_of_date))
 
     with tab_model:
         render_selected_model(selected_model, as_of_date, str(scenario_id))
@@ -158,6 +198,13 @@ def render_selected_model(selected_model: str, as_of_date: date, scenario_id: st
         render_runoff(runoff)
         return
 
+    if selected_model == MODEL_SCENARIO_FORECAST:
+        assets = st.slider("Aktywa w scenario forecast", 3, 150, 50, 1)
+        with st.spinner("Liczenie wszystkich scenariuszy forecastu..."):
+            forecast = cached_forecast_projection(as_of_date, assets)
+        render_forecast(forecast)
+        return
+
     if selected_model == MODEL_FORECAST:
         model_type = st.selectbox("Silnik forecastu", FORECAST_ENGINE_OPTIONS)
         horizon_months = st.slider("Horyzont forecastu w miesiącach", 1, 36, 12)
@@ -173,6 +220,19 @@ def render_selected_model(selected_model: str, as_of_date: date, scenario_id: st
                 assets,
             )
         render_monte_carlo_forecast(forecast)
+        return
+
+    if selected_model == MODEL_STEERING:
+        assets = st.slider("Aktywa w steering", 3, 150, 50, 1)
+        recommendations = st.slider("Rekomendacje", 1, 25, 10, 1)
+        with st.spinner("Liczenie scenario steering, attribution i rekomendacji..."):
+            steering = cached_steering_simulation(
+                as_of_date,
+                scenario_id,
+                assets,
+                recommendations,
+            )
+        render_steering(steering)
         return
 
     projection_dates = available_projection_dates(as_of_date)
@@ -211,7 +271,7 @@ def render_current(snapshot) -> None:
     density = snapshot.summary["basel_3_1_rwa_density"]
 
     col_rwa, col_exposure, col_density, col_failures = st.columns(4)
-    col_rwa.metric("Basel 3.1 final RWA", format_money(total_rwa))
+    col_rwa.metric("Credit RWA row proxy", format_money(total_rwa))
     col_exposure.metric("Exposure amount", format_money(total_exposure))
     col_density.metric("RWA density", format_pct(density))
     col_failures.metric("Błędy walidacji", snapshot.summary["output_failure_records"])
@@ -224,7 +284,7 @@ def render_current(snapshot) -> None:
             .mark_bar()
             .encode(
                 x=alt.X("entity_class:N", title="Klasa ekspozycji"),
-                y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 final RWA"),
+                y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
                 color=alt.Color("entity_class:N", legend=None),
                 tooltip=[
                     "entity_class",
@@ -252,6 +312,76 @@ def render_current(snapshot) -> None:
 
     st.subheader("Największe kontrybutory RWA")
     st.dataframe(format_table(snapshot.top_assets), width="stretch", hide_index=True)
+
+
+def render_regulatory_capital(capital) -> None:
+    """Render aggregate Basel capital modules beyond point-in-time credit RWA."""
+    st.subheader("Regulatory capital stack")
+    output_floor = capital.output_floor
+    leverage = capital.leverage_ratio
+    operational = capital.operational_risk
+    cva = capital.cva_risk
+
+    col_pre, col_floor, col_applicable, col_leverage = st.columns(4)
+    col_pre.metric("Pre-floor RWA", format_money(output_floor["pre_floor_rwa"]))
+    col_floor.metric("Output floor calibration", format_pct(output_floor["floor_calibration"]))
+    col_applicable.metric("Applicable RWA", format_money(output_floor["applicable_rwa"]))
+    col_leverage.metric("Leverage ratio", format_pct(leverage["leverage_ratio"]))
+
+    stack = (
+        alt.Chart(capital.capital_stack)
+        .mark_bar()
+        .encode(
+            x=alt.X("rwa:Q", title="RWA"),
+            y=alt.Y("component:N", title=None, sort="-x"),
+            color=alt.Color("component:N", legend=None),
+            tooltip=["component", alt.Tooltip("rwa:Q", format=",.0f")],
+        )
+    )
+    st.altair_chart(stack, width="stretch")
+
+    left, middle, right = st.columns([1, 1, 1])
+    with left:
+        st.subheader("Output floor")
+        st.dataframe(
+            format_table(pd.DataFrame([output_floor])),
+            width="stretch",
+            hide_index=True,
+        )
+    with middle:
+        st.subheader("CVA / operational risk")
+        st.dataframe(
+            format_table(
+                pd.DataFrame(
+                    [
+                        {
+                            "module": "CVA",
+                            "capital": cva["cva_capital_requirement"],
+                            "rwa": cva["cva_rwa"],
+                            "approach": cva["approach_used"],
+                        },
+                        {
+                            "module": "Operational risk",
+                            "capital": operational["operational_risk_capital"],
+                            "rwa": operational["operational_risk_rwa"],
+                            "approach": "Standardised approach",
+                        },
+                    ]
+                )
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+    with right:
+        st.subheader("Leverage ratio")
+        st.dataframe(
+            format_table(pd.DataFrame([leverage])),
+            width="stretch",
+            hide_index=True,
+        )
+
+    for note in capital.methodology_notes:
+        st.caption(note)
 
 
 def render_runoff(projection) -> None:
@@ -296,7 +426,7 @@ def render_runoff(projection) -> None:
         .mark_line(point=True)
         .encode(
             x=alt.X("projection_date:T", title="Data"),
-            y=alt.Y("RWA:Q", title="Basel 3.1 final RWA"),
+            y=alt.Y("RWA:Q", title="Basel 3.1 row-level proxy RWA"),
             tooltip=[
                 alt.Tooltip("projection_date:T", title="Data"),
                 "id",

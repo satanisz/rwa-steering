@@ -1,0 +1,204 @@
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+
+from fastapi.testclient import TestClient
+
+from rwa_calculator.rwa_calculator.capital import (
+    calculate_cva_risk,
+    calculate_leverage_ratio,
+    calculate_operational_risk,
+    calculate_output_floor,
+)
+from rwa_calculator.rwa_calculator.capital_models import (
+    BusinessIndicatorYear,
+    CvaNettingSet,
+    CvaRiskRequest,
+    LeverageRatioRequest,
+    OffBalanceSheetItem,
+    OperationalRiskRequest,
+    OutputFloorRequest,
+)
+from rwa_calculator.rwa_calculator.fastapi_app import create_app
+
+
+def test_output_floor_uses_aggregate_pdf_example_and_phase_in() -> None:
+    response = calculate_output_floor(
+        OutputFloorRequest(
+            calculation_date=date(2027, 1, 1),
+            pre_floor_rwa=Decimal("76"),
+            standardised_rwa=Decimal("140"),
+            cet1_capital=Decimal("12"),
+            tier1_capital=Decimal("14"),
+            total_capital=Decimal("16"),
+        )
+    )
+    phase_in = calculate_output_floor(
+        OutputFloorRequest(
+            calculation_date=date(2026, 1, 1),
+            pre_floor_rwa=Decimal("76"),
+            standardised_rwa=Decimal("140"),
+            cet1_capital=Decimal("12"),
+            tier1_capital=Decimal("14"),
+            total_capital=Decimal("16"),
+        )
+    )
+
+    assert response.floor_calibration == Decimal("0.725000")
+    assert response.floor_requirement_rwa == Decimal("101.50")
+    assert response.applicable_rwa == Decimal("101.50")
+    assert response.output_floor_amount == Decimal("25.50")
+    assert phase_in.floor_calibration == Decimal("0.700000")
+    assert phase_in.floor_requirement_rwa == Decimal("98.00")
+
+
+def test_operational_risk_bic_golden_example() -> None:
+    response = calculate_operational_risk(
+        OperationalRiskRequest(
+            calculation_date=date(2026, 5, 15),
+            annual_business_indicators=[
+                BusinessIndicatorYear(
+                    year=2024,
+                    interest_leases_dividend_component=Decimal("20000000000"),
+                    services_component=Decimal("10000000000"),
+                    financial_component=Decimal("5000000000"),
+                ),
+                BusinessIndicatorYear(
+                    year=2025,
+                    interest_leases_dividend_component=Decimal("20000000000"),
+                    services_component=Decimal("10000000000"),
+                    financial_component=Decimal("5000000000"),
+                ),
+                BusinessIndicatorYear(
+                    year=2026,
+                    interest_leases_dividend_component=Decimal("20000000000"),
+                    services_component=Decimal("10000000000"),
+                    financial_component=Decimal("5000000000"),
+                ),
+            ],
+            loss_data_quality_met=False,
+        )
+    )
+
+    assert response.business_indicator == Decimal("35000000000.00")
+    assert response.business_indicator_component == Decimal("5370000000.00")
+    assert response.internal_loss_multiplier == Decimal("1.000000")
+    assert response.operational_risk_rwa == Decimal("67125000000.00")
+
+
+def test_cva_materiality_and_ba_cva_paths() -> None:
+    materiality = calculate_cva_risk(
+        CvaRiskRequest(
+            calculation_date=date(2026, 5, 15),
+            materiality_option_elected=True,
+            aggregate_non_centrally_cleared_derivative_notional=Decimal("50000000000"),
+            ccr_capital_requirement=Decimal("1250000"),
+        )
+    )
+    ba_cva = calculate_cva_risk(
+        CvaRiskRequest(
+            calculation_date=date(2026, 5, 15),
+            approach="BA_REDUCED",
+            aggregate_non_centrally_cleared_derivative_notional=Decimal("150000000000"),
+            netting_sets=[
+                CvaNettingSet(
+                    counterparty_id="CP1",
+                    ead=Decimal("10000000"),
+                    maturity_years=Decimal("2"),
+                    risk_weight=Decimal("0.05"),
+                )
+            ],
+        )
+    )
+
+    assert materiality.approach_used == "MATERIALITY_OPTION"
+    assert materiality.cva_capital_requirement == Decimal("1250000.00")
+    assert materiality.cva_rwa == Decimal("15625000.00")
+    assert ba_cva.approach_used == "BA_REDUCED"
+    assert ba_cva.cva_rwa > Decimal("0")
+
+
+def test_leverage_ratio_exposure_measure_and_buffer() -> None:
+    response = calculate_leverage_ratio(
+        LeverageRatioRequest(
+            calculation_date=date(2026, 5, 15),
+            tier1_capital=Decimal("60"),
+            on_balance_sheet_exposures=Decimal("1000"),
+            derivative_replacement_cost=Decimal("50"),
+            derivative_potential_future_exposure=Decimal("70"),
+            sft_gross_exposure=Decimal("200"),
+            sft_netting_benefit=Decimal("50"),
+            off_balance_sheet_items=[
+                OffBalanceSheetItem(
+                    item_id="OBS1",
+                    notional=Decimal("100"),
+                    credit_conversion_factor=Decimal("0.40"),
+                )
+            ],
+            gsib_higher_loss_absorbency_requirement=Decimal("0.02"),
+        )
+    )
+
+    assert response.exposure_measure == Decimal("1310.00")
+    assert response.gsib_leverage_buffer == Decimal("0.010000")
+    assert response.minimum_leverage_ratio == Decimal("0.040000")
+    assert response.leverage_ratio == Decimal("0.045802")
+
+
+def test_capital_fastapi_endpoints() -> None:
+    client = TestClient(create_app())
+
+    output_floor = client.post(
+        "/v1/output-floor/calculate",
+        json={
+            "calculation_date": "2027-01-01",
+            "pre_floor_rwa": "76",
+            "standardised_rwa": "140",
+            "cet1_capital": "12",
+            "tier1_capital": "14",
+            "total_capital": "16",
+        },
+    )
+    operational = client.post(
+        "/v1/operational-risk/calculate",
+        json={
+            "calculation_date": "2026-05-15",
+            "annual_business_indicators": [
+                {
+                    "year": 2024,
+                    "interest_leases_dividend_component": "1",
+                    "services_component": "1",
+                    "financial_component": "1",
+                },
+                {
+                    "year": 2025,
+                    "interest_leases_dividend_component": "1",
+                    "services_component": "1",
+                    "financial_component": "1",
+                },
+                {
+                    "year": 2026,
+                    "interest_leases_dividend_component": "1",
+                    "services_component": "1",
+                    "financial_component": "1",
+                },
+            ],
+            "loss_data_quality_met": False,
+        },
+    )
+    leverage = client.post(
+        "/v1/leverage-ratio/calculate",
+        json={
+            "calculation_date": "2026-05-15",
+            "tier1_capital": "60",
+            "on_balance_sheet_exposures": "1000",
+        },
+    )
+
+    assert output_floor.status_code == 200
+    assert output_floor.json()["applicable_rwa"] == "101.50"
+    assert operational.status_code == 200
+    assert operational.json()["operational_risk_rwa"] == "4.50"
+    assert leverage.status_code == 200
+    assert leverage.json()["leverage_ratio"] == "0.060000"
