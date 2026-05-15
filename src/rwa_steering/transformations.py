@@ -61,7 +61,7 @@ def project_row(
 
     This is the central adapter between steering assumptions and the deterministic RWA
     calculator. It forecasts calculator inputs rather than final RWA, preserving auditability:
-    every projected row can be validated and passed through the same proxy calculator path as the
+    every projected row can be validated and passed through the same calculator path as the
     current portfolio.
 
     The ``apply_*`` switches support sequential revaluation attribution. For example, the

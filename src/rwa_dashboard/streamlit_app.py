@@ -21,23 +21,207 @@ RWA_LABELS = {
     "basel_3_0_rwa": "Basel 3.0",
     RWA_FOUNDATION_FIELD: "Basel 3.1 foundation",
     RWA_STANDARDISED_FIELD: "Basel 3.1 standardised",
-    RWA_FINAL_FIELD: "Basel 3.1 row-level proxy",
+    RWA_FINAL_FIELD: "Basel 3.1 row-level RWA",
 }
 MODEL_RUNOFF = "Run-off f(x,t)"
-LEGACY_METHODOLOGY_LABEL = MODEL_RUNOFF
+RUNOFF_METHODOLOGY_LABEL = MODEL_RUNOFF
 RUNOFF_METHODOLOGY_OPTIONS = (MODEL_RUNOFF,)
-CALCULATOR_MATURITY_LABEL = "Proxy calculator"
-CALCULATOR_POSITIONING_NOTE = (
-    "Methodology scope: proxy calculator control tower; on this branch, legacy scope is limited "
-    "to Run-off f(x,t), not a full regulatory-grade RWA engine."
-)
-CALCULATOR_POSITIONING_DETAILS = (
-    "Uses prepared pre-prod input data, generated scenario assumptions and deterministic "
-    "calculator outputs for decision support.",
-    "Legacy methodology on legacy_prep is Run-off f(x,t) only.",
-    "Does not replace bank-approved regulatory reporting, model validation, jurisdictional "
-    "rule interpretation or supervisory sign-off.",
-)
+CET1_MINIMUM_DASHBOARD_REQUIREMENT = 0.105
+
+DASHBOARD_DARK_CSS = """
+<style>
+    .stApp {
+        background:
+            radial-gradient(circle at 78% 0%, rgba(13, 83, 145, 0.28), transparent 30rem),
+            radial-gradient(circle at 8% 8%, rgba(28, 84, 180, 0.20), transparent 24rem),
+            #050d1b;
+        color: #eef5ff;
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    [data-testid="stAppViewContainer"] > .main {
+        background: transparent;
+    }
+    .block-container {
+        max-width: 1440px;
+        padding-top: 1.25rem;
+        padding-bottom: 2.5rem;
+    }
+    section[data-testid="stSidebar"] {
+        background: #06111f;
+        border-right: 1px solid rgba(104, 137, 188, 0.26);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #d9e6f7;
+    }
+    .dashboard-sidebar-mark {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.35rem 0 1.1rem;
+    }
+    .dashboard-nav-item {
+        border: 1px solid rgba(124, 166, 237, 0.24);
+        border-radius: 8px;
+        padding: 0.72rem 0.8rem;
+        background: rgba(8, 22, 42, 0.72);
+        color: #dce9fb;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-align: center;
+    }
+    .dashboard-nav-item.active {
+        background: linear-gradient(135deg, #0a4ad6, #0c2d76);
+        border-color: rgba(89, 152, 255, 0.60);
+        box-shadow: 0 14px 34px rgba(18, 87, 210, 0.30);
+    }
+    .dashboard-title-wrap {
+        border: 1px solid rgba(90, 131, 190, 0.28);
+        border-radius: 22px;
+        background: linear-gradient(140deg, rgba(6, 18, 34, 0.94), rgba(3, 13, 27, 0.88));
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+        padding: 2rem 2rem 1.35rem;
+        margin-bottom: 1rem;
+    }
+    .dashboard-eyebrow {
+        color: #72a7ff;
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+    }
+    .dashboard-title-wrap h1 {
+        color: #f8fbff;
+        font-size: 2rem;
+        line-height: 1.1;
+        margin: 0;
+        letter-spacing: 0;
+    }
+    .dashboard-title-wrap p {
+        color: #aebbd0;
+        font-size: 1rem;
+        margin: 0.5rem 0 0;
+    }
+    .dashboard-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin: 1rem 0 1.35rem;
+    }
+    .dashboard-kpi-card {
+        min-height: 132px;
+        border: 1px solid rgba(86, 126, 183, 0.30);
+        border-radius: 8px;
+        background: linear-gradient(145deg, rgba(7, 20, 38, 0.96), rgba(4, 14, 29, 0.92));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        padding: 1.35rem 1.45rem;
+        display: grid;
+        grid-template-columns: 58px 1fr;
+        column-gap: 1rem;
+        align-items: center;
+    }
+    .dashboard-kpi-icon {
+        align-items: center;
+        border-radius: 8px;
+        display: flex;
+        font-size: 0.9rem;
+        font-weight: 900;
+        height: 58px;
+        justify-content: center;
+        letter-spacing: 0;
+        width: 58px;
+    }
+    .dashboard-kpi-card.blue .dashboard-kpi-icon {
+        background: rgba(18, 98, 255, 0.18);
+        color: #1f7cff;
+    }
+    .dashboard-kpi-card.violet .dashboard-kpi-icon {
+        background: rgba(122, 85, 255, 0.18);
+        color: #8b6dff;
+    }
+    .dashboard-kpi-card.green .dashboard-kpi-icon {
+        background: rgba(22, 199, 120, 0.16);
+        color: #2bd27f;
+    }
+    .dashboard-kpi-card.amber .dashboard-kpi-icon {
+        background: rgba(245, 176, 33, 0.18);
+        color: #ffc83d;
+    }
+    .dashboard-kpi-label {
+        color: #cbd7e7;
+        font-size: 0.96rem;
+        font-weight: 700;
+        margin-bottom: 0.4rem;
+    }
+    .dashboard-kpi-value {
+        color: #f8fbff;
+        font-size: 1.75rem;
+        font-weight: 850;
+        line-height: 1;
+    }
+    .dashboard-kpi-value.negative {
+        color: #ff4f55;
+    }
+    .dashboard-kpi-value.positive {
+        color: #2bd27f;
+    }
+    .dashboard-kpi-sub {
+        color: #8fa4be;
+        font-size: 0.82rem;
+        margin-top: 0.35rem;
+    }
+    div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stAltairChart"]),
+    div[data-testid="stDataFrame"] {
+        border-radius: 8px;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: rgba(8, 22, 42, 0.86);
+        border: 1px solid rgba(86, 126, 183, 0.28);
+        border-radius: 8px;
+        color: #cad7e8;
+        height: 42px;
+        padding: 0 1rem;
+    }
+    .stTabs [aria-selected="true"] {
+        background: rgba(20, 80, 190, 0.32);
+        border-color: rgba(105, 163, 255, 0.56);
+        color: #ffffff;
+    }
+    h2, h3 {
+        color: #eff6ff;
+        letter-spacing: 0;
+    }
+    [data-testid="stMetric"] {
+        background: rgba(7, 20, 38, 0.82);
+        border: 1px solid rgba(86, 126, 183, 0.26);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+    }
+    [data-testid="stMetricValue"] {
+        color: #f8fbff;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #aebbd0;
+    }
+    @media (max-width: 1100px) {
+        .dashboard-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 700px) {
+        .dashboard-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+        .dashboard-title-wrap {
+            padding: 1.35rem;
+        }
+    }
+</style>
+"""
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -66,39 +250,304 @@ def cached_input_package():
 
 def main() -> None:
     """Render the RWA run-off dashboard."""
-    st.set_page_config(page_title="RWA Run-off", layout="wide")
+    st.set_page_config(page_title="RWA Application", layout="wide")
+    apply_dashboard_theme()
 
     default_date = default_as_of_date()
+    render_dashboard_sidebar()
     st.sidebar.title("Parametry")
     as_of_date = st.sidebar.date_input("Dzien kalkulacji", value=default_date)
     selected_methodology = methodology_selector()
     snapshot = cached_current(as_of_date)
+    capital = cached_regulatory_capital(as_of_date)
+    overview = cached_input_package()
 
-    st.title("RWA Run-off Dashboard")
-    st.caption(f"{CALCULATOR_MATURITY_LABEL}, as-of {as_of_date.isoformat()}")
-    render_calculator_positioning()
+    render_dashboard_header(as_of_date)
 
     tab_current, tab_model, tab_data = st.tabs(
-        ["RWA dzisiaj", "Run-off methodology", "Dane i jakosc"]
+        ["Dashboard", "Run-off methodology", "Dane i jakosc"]
     )
 
     with tab_current:
+        overview_runoff = cached_runoff_projection(as_of_date, 12, 100)
+        render_dashboard_overview(snapshot, capital, overview, overview_runoff)
         render_current(snapshot)
-        render_regulatory_capital(cached_regulatory_capital(as_of_date))
+        render_regulatory_capital(capital)
 
     with tab_model:
         render_runoff_methodology(selected_methodology, as_of_date)
 
     with tab_data:
-        render_input_package(cached_input_package())
+        render_input_package(overview)
 
 
-def render_calculator_positioning() -> None:
-    """Render the explicit methodology-scope warning requested for stakeholder alignment."""
-    st.warning(CALCULATOR_POSITIONING_NOTE)
-    with st.expander("Methodology scope and limitations", expanded=False):
-        for detail in CALCULATOR_POSITIONING_DETAILS:
-            st.markdown(f"- {detail}")
+def apply_dashboard_theme() -> None:
+    """Inject the dark cockpit styling for the Streamlit shell."""
+    st.markdown(DASHBOARD_DARK_CSS, unsafe_allow_html=True)
+
+
+def render_dashboard_sidebar() -> None:
+    """Render the compact navigation rail motif in the sidebar."""
+    st.sidebar.markdown(
+        """
+        <div class="dashboard-sidebar-mark">
+            <div class="dashboard-nav-item active">RWA</div>
+            <div class="dashboard-nav-item">CAP</div>
+            <div class="dashboard-nav-item">RUN</div>
+            <div class="dashboard-nav-item">DQ</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_dashboard_header(as_of_date: date) -> None:
+    """Render the dashboard header in the requested visual direction."""
+    st.markdown(
+        f"""
+        <div class="dashboard-title-wrap">
+            <div class="dashboard-eyebrow">RWA monitoring</div>
+            <h1>RWA Application</h1>
+            <p>Risk-Weighted Assets Dashboard | as-of {as_of_date.isoformat()}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_dashboard_overview(snapshot, capital, overview, runoff) -> None:
+    """Render the first-screen dashboard cockpit from prepared calculation outputs."""
+    output_floor = capital.output_floor
+    cet1_impact = output_floor["cet1_ratio"] - output_floor["cet1_ratio_pre_floor"]
+    capital_buffer = output_floor["cet1_ratio"] - CET1_MINIMUM_DASHBOARD_REQUIREMENT
+    quality_score = data_quality_score(snapshot, overview)
+
+    render_dashboard_kpis(
+        (
+            {
+                "tone": "blue",
+                "icon": "RWA",
+                "label": "Total RWA",
+                "value": format_full_money(output_floor["applicable_rwa"]),
+                "value_class": "",
+                "sub": "PLN applicable RWA",
+            },
+            {
+                "tone": "violet",
+                "icon": "C1",
+                "label": "CET1 Ratio Impact",
+                "value": format_pp(cet1_impact),
+                "value_class": "negative" if cet1_impact < 0 else "positive",
+                "sub": "vs pre-floor ratio",
+            },
+            {
+                "tone": "green",
+                "icon": "BF",
+                "label": "Capital Buffer",
+                "value": format_pp(capital_buffer),
+                "value_class": "positive" if capital_buffer >= 0 else "negative",
+                "sub": "CET1 vs 10.5% dashboard threshold",
+            },
+            {
+                "tone": "amber",
+                "icon": "DQ",
+                "label": "Data Quality Score",
+                "value": format_pct(quality_score),
+                "value_class": "positive"
+                if quality_score is not None and quality_score >= 0.95
+                else "",
+                "sub": f"{len(overview.data_quality_flags):,} flags in prepared package",
+            },
+        )
+    )
+
+    movement = runoff_waterfall_frame(runoff)
+    left, right = st.columns([1.45, 1])
+    with left:
+        st.subheader("RWA Movement Attribution (Run-off)")
+        st.altair_chart(runoff_waterfall_chart(movement), width="stretch")
+    with right:
+        st.subheader("Run-off drivers")
+        st.dataframe(runoff_driver_table(movement), width="stretch", hide_index=True)
+
+
+def render_dashboard_kpis(cards: tuple[dict[str, str], ...]) -> None:
+    """Render KPI cards as a single responsive dark grid."""
+    card_html = "\n".join(
+        f"""
+        <div class="dashboard-kpi-card {card["tone"]}">
+            <div class="dashboard-kpi-icon">{card["icon"]}</div>
+            <div>
+                <div class="dashboard-kpi-label">{card["label"]}</div>
+                <div class="dashboard-kpi-value {card["value_class"]}">{card["value"]}</div>
+                <div class="dashboard-kpi-sub">{card["sub"]}</div>
+            </div>
+        </div>
+        """
+        for card in cards
+    )
+    st.markdown(
+        f"""<div class="dashboard-kpi-grid">{card_html}</div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def data_quality_score(snapshot, overview) -> float | None:
+    """Score prepared data by successful records less package quality flags."""
+    record_count = float(snapshot.summary.get("input_data_records", 0) or 0)
+    if record_count <= 0:
+        return None
+    flagged_rows = float(len(overview.data_quality_flags))
+    return max(0.0, min(1.0, 1.0 - flagged_rows / record_count))
+
+
+def runoff_waterfall_frame(projection) -> pd.DataFrame:
+    """Build waterfall rows from the actual run-off aggregate projection."""
+    aggregate = projection.aggregate.sort_values("projection_date").reset_index(drop=True)
+    if aggregate.empty:
+        return pd.DataFrame(
+            columns=[
+                "driver",
+                "impact",
+                "start",
+                "end",
+                "kind",
+                "sort",
+                "start_m",
+                "end_m",
+                "label_y",
+                "chart_label",
+            ]
+        )
+
+    values = aggregate[RWA_FINAL_FIELD].astype(float)
+    opening = float(values.iloc[0])
+    rows = [
+        {
+            "driver": "Opening RWA",
+            "impact": opening,
+            "start": 0.0,
+            "end": opening,
+            "kind": "opening",
+            "sort": 0,
+        }
+    ]
+
+    previous = opening
+    for index in range(1, len(aggregate)):
+        current = float(values.iloc[index])
+        impact = current - previous
+        projection_date = pd.to_datetime(aggregate.loc[index, "projection_date"])
+        rows.append(
+            {
+                "driver": projection_date.strftime("%b %Y"),
+                "impact": impact,
+                "start": min(previous, current),
+                "end": max(previous, current),
+                "kind": "increase" if impact >= 0 else "decrease",
+                "sort": index,
+            }
+        )
+        previous = current
+
+    rows.append(
+        {
+            "driver": "Closing RWA",
+            "impact": previous,
+            "start": 0.0,
+            "end": previous,
+            "kind": "closing",
+            "sort": len(aggregate),
+        }
+    )
+
+    frame = pd.DataFrame(rows)
+    frame["start_m"] = frame["start"] / 1_000_000
+    frame["end_m"] = frame["end"] / 1_000_000
+    y_padding = max(frame["end_m"].max() * 0.035, 1.0)
+    frame["label_y"] = frame[["start_m", "end_m"]].max(axis=1) + y_padding
+    frame["chart_label"] = frame.apply(
+        lambda row: (
+            format_signed_millions(row["impact"])
+            if row["kind"] not in {"opening", "closing"}
+            else format_unsigned_millions(row["impact"])
+        ),
+        axis=1,
+    )
+    return frame
+
+
+def runoff_waterfall_chart(frame: pd.DataFrame) -> alt.LayerChart:
+    """Render a dark themed waterfall from prepared run-off deltas."""
+    if frame.empty:
+        return alt.Chart(pd.DataFrame({"driver": [], "impact": []})).mark_bar()
+
+    base = alt.Chart(frame).encode(
+        x=alt.X(
+            "driver:N",
+            sort=alt.SortField("sort"),
+            title=None,
+            axis=alt.Axis(labelAngle=0, labelLimit=88),
+        )
+    )
+    bars = base.mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3, size=40).encode(
+        y=alt.Y("start_m:Q", title="PLN (Millions)"),
+        y2="end_m:Q",
+        color=alt.Color(
+            "kind:N",
+            scale=alt.Scale(
+                domain=["opening", "increase", "decrease", "closing"],
+                range=["#0f62fe", "#f59f00", "#17b26a", "#16a34a"],
+            ),
+            legend=None,
+        ),
+        tooltip=[
+            "driver",
+            alt.Tooltip("impact:Q", title="Impact PLN", format=",.0f"),
+            alt.Tooltip("end:Q", title="RWA PLN", format=",.0f"),
+        ],
+    )
+    labels = base.mark_text(dy=-6, color="#edf5ff", fontWeight="bold").encode(
+        y=alt.Y("label_y:Q"),
+        text="chart_label:N",
+    )
+    return (
+        (bars + labels)
+        .properties(height=372, background="transparent")
+        .configure_axis(
+            gridColor="rgba(126, 158, 203, 0.16)",
+            labelColor="#c8d5e8",
+            titleColor="#c8d5e8",
+        )
+        .configure_view(stroke=None)
+    )
+
+
+def runoff_driver_table(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return the right-side driver table for the run-off waterfall."""
+    if frame.empty:
+        return pd.DataFrame(columns=["Driver", "Impact (PLN)", "% of Change"])
+
+    deltas = frame[~frame["kind"].isin(["opening", "closing"])].copy()
+    total_change = float(deltas["impact"].sum())
+    deltas["Driver"] = deltas["driver"]
+    deltas["Impact (PLN)"] = deltas["impact"].map(format_signed_full_money)
+    if total_change == 0:
+        deltas["% of Change"] = "n/a"
+    else:
+        deltas["% of Change"] = deltas["impact"].map(lambda value: f"{value / total_change:.1%}")
+
+    table = deltas[["Driver", "Impact (PLN)", "% of Change"]]
+    total = pd.DataFrame(
+        [
+            {
+                "Driver": "Total Change",
+                "Impact (PLN)": format_signed_full_money(total_change),
+                "% of Change": "100.0%" if total_change else "n/a",
+            }
+        ]
+    )
+    return pd.concat([table, total], ignore_index=True)
 
 
 def methodology_selector() -> str:
@@ -125,7 +574,6 @@ def methodology_selector() -> str:
 def render_runoff_methodology(selected_methodology: str, as_of_date: date) -> None:
     """Run and render exactly one selected run-off methodology."""
     st.subheader(selected_methodology)
-    st.info("Legacy methodology on this branch: Run-off f(x,t) only.")
     if selected_methodology == MODEL_RUNOFF:
         projected_months = st.slider("Horyzont run-off w miesiacach", 1, 24, 24)
         assets = st.slider("Aktywa w run-off", 10, 300, 100, 10)
@@ -142,7 +590,7 @@ def render_current(snapshot) -> None:
     density = snapshot.summary["basel_3_1_rwa_density"]
 
     col_rwa, col_exposure, col_density, col_failures = st.columns(4)
-    col_rwa.metric("Credit RWA row proxy", format_money(total_rwa))
+    col_rwa.metric("Credit RWA", format_money(total_rwa))
     col_exposure.metric("Exposure amount", format_money(total_exposure))
     col_density.metric("RWA density", format_pct(density))
     col_failures.metric("Bledy walidacji", snapshot.summary["output_failure_records"])
@@ -155,7 +603,7 @@ def render_current(snapshot) -> None:
             .mark_bar()
             .encode(
                 x=alt.X("entity_class:N", title="Klasa ekspozycji"),
-                y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
+                y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level RWA"),
                 color=alt.Color("entity_class:N", legend=None),
                 tooltip=[
                     "entity_class",
@@ -297,7 +745,7 @@ def render_runoff(projection) -> None:
         .mark_line(point=True)
         .encode(
             x=alt.X("projection_date:T", title="Data"),
-            y=alt.Y("RWA:Q", title="Basel 3.1 row-level proxy RWA"),
+            y=alt.Y("RWA:Q", title="Basel 3.1 row-level RWA"),
             tooltip=[
                 alt.Tooltip("projection_date:T", title="Data"),
                 "id",
@@ -337,6 +785,41 @@ def format_money(value: float | int | None) -> str:
     if value is None:
         return "n/a"
     return f"{float(value) / 1_000_000:,.1f}m"
+
+
+def format_full_money(value: float | int | None) -> str:
+    """Format full PLN values for headline dashboard cards."""
+    if value is None:
+        return "n/a"
+    return f"{float(value):,.0f}"
+
+
+def format_signed_full_money(value: float | int | None) -> str:
+    """Format signed PLN values for movement attribution."""
+    if value is None:
+        return "n/a"
+    return f"{float(value):+,.0f}"
+
+
+def format_unsigned_millions(value: float | int | None) -> str:
+    """Format a non-signed compact millions label."""
+    if value is None:
+        return "n/a"
+    return f"{float(value) / 1_000_000:,.0f}M"
+
+
+def format_signed_millions(value: float | int | None) -> str:
+    """Format a signed compact millions label."""
+    if value is None:
+        return "n/a"
+    return f"{float(value) / 1_000_000:+,.0f}M"
+
+
+def format_pp(value: float | int | None) -> str:
+    """Format a ratio delta as percentage points."""
+    if value is None:
+        return "n/a"
+    return f"{float(value) * 100:+.2f} pp"
 
 
 def format_pct(value: float | int | None) -> str:

@@ -15,7 +15,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RWA Forecast Service",
         version=FORECAST_ENGINE_VERSION,
-        description="VAR/LSTM-proxy market forecast and Monte Carlo RWA path simulation.",
+        description="VAR/recurrent market forecast and Monte Carlo RWA path simulation.",
     )
     app.state.service = service
 

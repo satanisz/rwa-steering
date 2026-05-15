@@ -397,8 +397,8 @@ volatility_index
 credit_spread_bps
 yield_curve_slope_bps
 liquidity_index
-unemployment_proxy
-gdp_growth_proxy
+unemployment_indicator
+gdp_growth_indicator
 regime_label
 regime_score
 ```
@@ -481,7 +481,7 @@ capital_cost = RWA * capital_cost_rate
 raroc = (net_revenue - funding_cost - expected_loss - operating_cost) / capital
 ```
 
-If current RWA is not available at input-generation time, use a placeholder capital proxy and recalculate after the first calculator run.
+If current RWA is not available at input-generation time, use a placeholder capital estimate and recalculate after the first calculator run.
 
 ## 15. Steering Action Constraints
 
@@ -748,7 +748,7 @@ This is the difference between a calculator and a steering tool.
 | Synthetic assumptions look arbitrary | High | Version all assumptions and show them in the demo |
 | Too many generated files confuse users | Medium | Use manifest and clear README |
 | Rating migration unrealistic | High | Keep matrices simple and auditable |
-| Profitability proxy too simplistic | Medium | Label as proxy and allow replacement with real finance data |
+| Profitability estimate too simplistic | Medium | Label as prepared input and allow replacement with real finance data |
 | FX rates mistaken for market forecast | Medium | Label as synthetic scenario rates |
 | Regulatory overlays incomplete | High | Keep jurisdiction overlays separate and marked as seed |
 | Recommendations too aggressive | Medium | Add action constraints and business cost scores |

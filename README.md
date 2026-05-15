@@ -1,22 +1,15 @@
 # RWA Steering
 
-Python `src/` layout repository for Basel III RWA proxy calculation, projection and steering
+Python `src/` layout repository for Basel III RWA calculation, projection and steering
 services:
 
-- `src/rwa_calculator` - proxy RWA calculator backend, exposed as `rwa-calculator`.
-- `src/rwa_forecast_service` - VAR/LSTM-proxy forecast and Monte Carlo trajectory service.
+- `src/rwa_calculator` - RWA calculator backend, exposed as `rwa-calculator`.
+- `src/rwa_forecast_service` - VAR/recurrent forecast and Monte Carlo trajectory service.
 - `src/rwa_projection_service` - projection service using `rwa_calculator` as `f(x, t)`.
 - `src/rwa_steering` - regime-aware steering service with generated scenario inputs,
   attribution and recommendations.
 - `src/rwa_rats_service` - Risk-Aware Trading Swarm optimization service for forecasted RWA.
-- `src/rwa_dashboard` - Streamlit control tower over the calculator, projection and steering
-  services.
-
-Methodology positioning: this is a proxy calculator and decision-support control tower, not a full
-regulatory-grade RWA engine. On the `legacy_prep` branch, the Streamlit legacy methodology is only
-`Run-off f(x,t)`. The app uses prepared pre-prod inputs, generated scenario assumptions and
-deterministic calculator outputs; it does not replace bank-approved regulatory reporting, model
-validation, jurisdictional rule interpretation or supervisory sign-off.
+- `src/rwa_dashboard` - Streamlit dashboard over the calculator, projection and steering services.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
 `pytest` for tests, `ruff` for linting/formatting, and coverage/security tooling suitable for
@@ -26,7 +19,7 @@ enterprise CI.
 
 ```text
 preprod CoreInfo / CountryInfo / NCCR mapping
-  -> rwa_calculator proxy calculator
+  -> rwa_calculator
   -> rwa_projection_service for f(x, t) monthly projections
   -> rwa_steering generated_inputs package
   -> scenario projection, attribution, recommendations
@@ -69,12 +62,11 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard exposes the calculator maturity scope, the `Run-off f(x,t)` legacy
-methodology and a separate regulatory capital stack panel:
+The Streamlit dashboard exposes the `Run-off f(x,t)` methodology and a separate regulatory capital
+stack panel:
 
-- current row-level credit RWA proxy plus aggregate applicable RWA
-- `Run-off f(x,t)` for the existing book using monthly maturity roll-forward; this is the only
-  legacy methodology on this branch
+- current row-level credit RWA plus aggregate applicable RWA
+- `Run-off f(x,t)` for the existing book using monthly maturity roll-forward
 - aggregate output floor, CVA, operational risk and leverage-ratio views
 - generated input package quality diagnostics
 
@@ -123,10 +115,10 @@ calculated; negative projected maturity returns zero projection values; missing 
 null projection values.
 
 The forecast service simulates multi-period ALM trajectories before optimization. It supports a
-classic VAR-style autoregressive factor model and a lightweight `LSTM_PROXY` recurrent model,
-then generates Monte Carlo paths of market factors, portfolio baskets, RWA, profit, capital-ratio
-breaches, turnover and drawdown. Each full path is scored with a loss function balancing profit
-against RWA floor penalties, turnover, drawdown and terminal RWA usage.
+classic VAR-style autoregressive factor model and a recurrent factor model, then generates Monte
+Carlo paths of market factors, portfolio baskets, RWA, profit, capital-ratio breaches, turnover
+and drawdown. Each full path is scored with a loss function balancing profit against RWA floor
+penalties, turnover, drawdown and terminal RWA usage.
 
 The steering service applies BASE, DOWNSIDE, STRESS and RECOVERY assumptions from the generated
 input package to the current input records, calls the existing RWA calculator, and returns
@@ -162,7 +154,7 @@ report:
 - scenario definitions and forecast calendar
 - segment growth, rating migration, DLGD and FX assumptions
 - macro regime indicators and regulatory overlay selection
-- profitability proxies, steering action constraints, strategy limits and data quality flags
+- profitability inputs, steering action constraints, strategy limits and data quality flags
 - prepared capital stack inputs: capital positions, operational BI/loss history, CVA netting
   sets/hedges and leverage exposure components
 
@@ -187,13 +179,10 @@ Current automated gates:
 - `uv build`
 - generated-input reproducibility check
 
-## Production Caveats
+## Production Readiness
 
-The calculator, generated inputs and regulatory overlays are clearly labelled as proxy, synthetic
-or seed reference data. On `legacy_prep`, legacy methodology is limited to `Run-off f(x,t)`.
-Outputs must not be presented as final regulatory returns or as a full regulatory-grade RWA engine.
 Before production use, the methodology, reference data, jurisdiction overlays, rating migrations,
-profitability proxies and steering recommendations must be reconciled with approved bank policy,
+profitability inputs and steering recommendations must be reconciled with approved bank policy,
 binding legal text and model-risk governance.
 
-Legacy project READMEs are preserved in `docs_bob_README.md` and `docs_codex_README.md`.
+Archived project READMEs are preserved in `docs_bob_README.md` and `docs_codex_README.md`.

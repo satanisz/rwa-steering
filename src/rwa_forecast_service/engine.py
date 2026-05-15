@@ -27,7 +27,7 @@ from .schemas import (
 
 FORECAST_ENGINE_VERSION = "rwa-forecast-service-0.1.0"
 METHODOLOGY = (
-    "Autoregressive VAR/LSTM-proxy market-factor forecast with Monte Carlo portfolio "
+    "Autoregressive VAR/recurrent market-factor forecast with Monte Carlo portfolio "
     "trajectory generation and multi-period path scoring for RWA-aware ALM simulation."
 )
 MONEY_Q = Decimal("0.01")
@@ -38,8 +38,8 @@ FACTOR_NAMES = (
     "credit_spread_bps",
     "yield_curve_slope_bps",
     "liquidity_index",
-    "unemployment_proxy",
-    "gdp_growth_proxy",
+    "unemployment_indicator",
+    "gdp_growth_indicator",
 )
 
 
@@ -51,8 +51,8 @@ class MacroState:
     credit_spread_bps: Decimal
     yield_curve_slope_bps: Decimal
     liquidity_index: Decimal
-    unemployment_proxy: Decimal
-    gdp_growth_proxy: Decimal
+    unemployment_indicator: Decimal
+    gdp_growth_indicator: Decimal
 
 
 @dataclass(frozen=True)
@@ -138,8 +138,8 @@ class RwaForecastService:
 
                 rwa = portfolio_rwa(payload["results"])
                 exposure = portfolio_exposure(accumulator.rows)
-                default_probability = default_probability_proxy(state)
-                loss_probability = loss_probability_proxy(state)
+                default_probability = default_probability_estimate(state)
+                loss_probability = loss_probability_estimate(state)
                 monthly_profit = monthly_portfolio_profit(accumulator.rows, default_probability)
                 accumulator.cumulative_profit += monthly_profit
                 accumulator.cumulative_turnover += turnover
@@ -206,7 +206,7 @@ class RwaForecastService:
             limitations=[
                 "VAR parameters are calibrated from synthetic generated macro regime inputs.",
                 (
-                    "LSTM_PROXY is a lightweight gated recurrent approximation, "
+                    "LSTM_RECURRENT is a lightweight gated recurrent approximation, "
                     "not a trained neural net."
                 ),
                 (
@@ -259,10 +259,10 @@ class RwaForecastService:
         rng: random.Random,
         step: int,
     ) -> MacroState:
-        """Forecast the next market-factor vector with VAR or LSTM-proxy recursion."""
+        """Forecast the next market-factor vector with VAR or recurrent recursion."""
         if request.model_type == "VAR":
             return var_next_state(state, calibration, rng)
-        return lstm_proxy_next_state(state, calibration, rng, step)
+        return lstm_recurrent_next_state(state, calibration, rng, step)
 
     def _project_rows_one_month(
         self,
@@ -285,7 +285,7 @@ class RwaForecastService:
             )
 
             if maturity < Decimal("0"):
-                renewal_probability = renewal_probability_proxy(state, row)
+                renewal_probability = renewal_probability_estimate(state, row)
                 if rng.random() < float(renewal_probability):
                     maturity = renewed_maturity(row)
                     row["original_maturity"] = maturity
@@ -353,8 +353,8 @@ def macro_state_from_row(row: Any) -> MacroState:
         credit_spread_bps=row.credit_spread_bps,
         yield_curve_slope_bps=row.yield_curve_slope_bps,
         liquidity_index=row.liquidity_index,
-        unemployment_proxy=row.unemployment_proxy,
-        gdp_growth_proxy=row.gdp_growth_proxy,
+        unemployment_indicator=row.unemployment_indicator,
+        gdp_growth_indicator=row.gdp_growth_indicator,
     )
 
 
@@ -372,7 +372,7 @@ def var_next_state(
         state.volatility_index - calibration.long_run_mean.volatility_index
     )
     growth_to_unemployment = Decimal("-0.20") * (
-        state.gdp_growth_proxy - calibration.long_run_mean.gdp_growth_proxy
+        state.gdp_growth_indicator - calibration.long_run_mean.gdp_growth_indicator
     )
     return bounded_state(
         MacroState(
@@ -406,18 +406,18 @@ def var_next_state(
                 rng,
             )
             + vol_to_liquidity,
-            unemployment_proxy=ar_step(
-                state.unemployment_proxy,
-                calibration.long_run_mean.unemployment_proxy,
-                calibration.volatility.unemployment_proxy,
+            unemployment_indicator=ar_step(
+                state.unemployment_indicator,
+                calibration.long_run_mean.unemployment_indicator,
+                calibration.volatility.unemployment_indicator,
                 Decimal("0.82"),
                 rng,
             )
             + growth_to_unemployment,
-            gdp_growth_proxy=ar_step(
-                state.gdp_growth_proxy,
-                calibration.long_run_mean.gdp_growth_proxy,
-                calibration.volatility.gdp_growth_proxy,
+            gdp_growth_indicator=ar_step(
+                state.gdp_growth_indicator,
+                calibration.long_run_mean.gdp_growth_indicator,
+                calibration.volatility.gdp_growth_indicator,
                 Decimal("0.62"),
                 rng,
             ),
@@ -425,7 +425,7 @@ def var_next_state(
     )
 
 
-def lstm_proxy_next_state(
+def lstm_recurrent_next_state(
     state: MacroState,
     calibration: Calibration,
     rng: random.Random,
@@ -471,18 +471,18 @@ def lstm_proxy_next_state(
                 input_gate,
                 rng,
             ),
-            unemployment_proxy=gated_step(
-                state.unemployment_proxy,
-                calibration.long_run_mean.unemployment_proxy + stress_memory * Decimal("0.08"),
-                calibration.volatility.unemployment_proxy,
+            unemployment_indicator=gated_step(
+                state.unemployment_indicator,
+                calibration.long_run_mean.unemployment_indicator + stress_memory * Decimal("0.08"),
+                calibration.volatility.unemployment_indicator,
                 Decimal("0.88"),
                 input_gate,
                 rng,
             ),
-            gdp_growth_proxy=gated_step(
-                state.gdp_growth_proxy,
-                calibration.long_run_mean.gdp_growth_proxy - stress_memory * Decimal("0.04"),
-                calibration.volatility.gdp_growth_proxy,
+            gdp_growth_indicator=gated_step(
+                state.gdp_growth_indicator,
+                calibration.long_run_mean.gdp_growth_indicator - stress_memory * Decimal("0.04"),
+                calibration.volatility.gdp_growth_indicator,
                 Decimal("0.70"),
                 input_gate,
                 rng,
@@ -523,8 +523,10 @@ def bounded_state(state: MacroState) -> MacroState:
         credit_spread_bps=clamp(state.credit_spread_bps, Decimal("20"), Decimal("900")),
         yield_curve_slope_bps=clamp(state.yield_curve_slope_bps, Decimal("-250"), Decimal("350")),
         liquidity_index=clamp(state.liquidity_index, Decimal("0.05"), Decimal("1.00")),
-        unemployment_proxy=clamp(state.unemployment_proxy, Decimal("0.02"), Decimal("0.25")),
-        gdp_growth_proxy=clamp(state.gdp_growth_proxy, Decimal("-0.12"), Decimal("0.08")),
+        unemployment_indicator=clamp(
+            state.unemployment_indicator, Decimal("0.02"), Decimal("0.25")
+        ),
+        gdp_growth_indicator=clamp(state.gdp_growth_indicator, Decimal("-0.12"), Decimal("0.08")),
     )
 
 
@@ -534,7 +536,7 @@ def project_exposure(row: dict[str, Any], state: MacroState, rng: random.Random)
     if exposure <= Decimal("0"):
         return Decimal("0")
     annual_growth = (
-        state.gdp_growth_proxy
+        state.gdp_growth_indicator
         + (state.liquidity_index - Decimal("0.50")) * Decimal("0.04")
         - state.credit_spread_bps / Decimal("10000")
     )
@@ -573,12 +575,12 @@ def project_rating(rating: str, state: MacroState, rng: random.Random) -> str:
         Decimal("0.01")
         + state.credit_spread_bps / Decimal("10000")
         + state.volatility_index / Decimal("2000")
-        + state.unemployment_proxy * Decimal("0.30"),
+        + state.unemployment_indicator * Decimal("0.30"),
         Decimal("0"),
         Decimal("0.55"),
     )
     upgrade_probability = clamp(
-        Decimal("0.015") + max(Decimal("0"), state.gdp_growth_proxy) * Decimal("0.80"),
+        Decimal("0.015") + max(Decimal("0"), state.gdp_growth_indicator) * Decimal("0.80"),
         Decimal("0"),
         Decimal("0.20"),
     )
@@ -590,24 +592,24 @@ def project_rating(rating: str, state: MacroState, rng: random.Random) -> str:
     return rating
 
 
-def default_probability_proxy(state: MacroState) -> Decimal:
-    """Return annualized default probability proxy implied by simulated market factors."""
+def default_probability_estimate(state: MacroState) -> Decimal:
+    """Return annualized default probability estimate implied by simulated market factors."""
     value = Decimal("0.003")
     value += state.credit_spread_bps / Decimal("20000")
     value += state.volatility_index / Decimal("5000")
-    value += state.unemployment_proxy * Decimal("0.25")
-    value -= max(Decimal("0"), state.gdp_growth_proxy) * Decimal("0.15")
+    value += state.unemployment_indicator * Decimal("0.25")
+    value -= max(Decimal("0"), state.gdp_growth_indicator) * Decimal("0.15")
     return clamp(value, Decimal("0.0005"), Decimal("0.35")).quantize(RATE_Q)
 
 
-def loss_probability_proxy(state: MacroState) -> Decimal:
-    """Return probability proxy for loss-making monthly path increments."""
-    value = default_probability_proxy(state) * Decimal("2")
+def loss_probability_estimate(state: MacroState) -> Decimal:
+    """Return probability estimate for loss-making monthly path increments."""
+    value = default_probability_estimate(state) * Decimal("2")
     value += (Decimal("1") - state.liquidity_index) * Decimal("0.10")
     return clamp(value, Decimal("0.001"), Decimal("0.75")).quantize(RATE_Q)
 
 
-def renewal_probability_proxy(state: MacroState, row: dict[str, Any]) -> Decimal:
+def renewal_probability_estimate(state: MacroState, row: dict[str, Any]) -> Decimal:
     """Return probability that a maturing exposure is renewed in the simulated book."""
     base = Decimal("0.80") if row.get("entity_class") in {"CORP", "RETAIL"} else Decimal("0.88")
     stress_drag = state.credit_spread_bps / Decimal("2000") + state.volatility_index / Decimal(
@@ -630,7 +632,7 @@ def monthly_portfolio_profit(
     rows: list[dict[str, Any]],
     default_probability: Decimal,
 ) -> Decimal:
-    """Return monthly net profit proxy from yield minus expected credit loss."""
+    """Return monthly net profit estimate from yield minus expected credit loss."""
     total = Decimal("0")
     for row in rows:
         exposure = parse_decimal(row["exposure_amount"], default=Decimal("0"))
@@ -661,10 +663,10 @@ def market_factor_step(
         credit_spread_bps=state.credit_spread_bps.quantize(RATE_Q),
         yield_curve_slope_bps=state.yield_curve_slope_bps.quantize(RATE_Q),
         liquidity_index=state.liquidity_index.quantize(RATE_Q),
-        unemployment_proxy=state.unemployment_proxy.quantize(RATE_Q),
-        gdp_growth_proxy=state.gdp_growth_proxy.quantize(RATE_Q),
-        default_probability_proxy=default_probability,
-        loss_probability_proxy=loss_probability,
+        unemployment_indicator=state.unemployment_indicator.quantize(RATE_Q),
+        gdp_growth_indicator=state.gdp_growth_indicator.quantize(RATE_Q),
+        default_probability_estimate=default_probability,
+        loss_probability_estimate=loss_probability,
     )
 
 

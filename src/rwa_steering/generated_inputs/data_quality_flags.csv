@@ -6,29 +6,29 @@ EXP000010,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual matur
 EXP000010,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000013,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000015,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000016,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000016,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000017,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
-EXP000018,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000018,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000024,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000030,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000030,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000034,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000035,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000036,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000038,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000038,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000039,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000040,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000040,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000040,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000041,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000041,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000042,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000046,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
-EXP000047,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000046,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
+EXP000047,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000048,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
-EXP000048,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000048,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000053,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000055,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000060,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000065,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000065,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000069,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000072,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000076,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
@@ -39,7 +39,7 @@ EXP000087,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm e
 EXP000090,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000091,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000093,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000094,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000094,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000095,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000096,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000098,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
@@ -54,9 +54,9 @@ EXP000109,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarante
 EXP000111,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000114,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000120,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
-EXP000121,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000121,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000122,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000123,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000123,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000127,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000129,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000130,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
@@ -83,39 +83,39 @@ EXP000162,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm e
 EXP000162,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000165,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000167,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000167,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000167,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000170,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000173,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
-EXP000173,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000173,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000174,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000177,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000181,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000183,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
-EXP000188,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000183,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
+EXP000188,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000190,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000191,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000192,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000193,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000194,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000196,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
-EXP000197,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
-EXP000200,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
-EXP000201,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000197,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
+EXP000200,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
+EXP000201,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000202,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000204,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000207,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000208,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000208,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
-EXP000211,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000211,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000213,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000215,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000216,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000216,govt_guarantee_flag,REGULATORY_FLAG_UNCONFIRMED,4,true,Attach guarantee eligibility evidence before relying on substitution.
 EXP000217,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000227,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000227,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000228,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000232,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.
 EXP000233,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
-EXP000233,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability proxy with finance-system feed.
+EXP000233,expected_yield,MISSING_PROFITABILITY,2,false,Replace synthetic profitability estimate with finance-system feed.
 EXP000235,counterparty_external_rating,MISSING_EXTERNAL_RATING,3,false,Confirm eligible ECAI rating or keep exposure on unrated treatment.
 EXP000236,original_maturity,SUSPICIOUS_MATURITY,2,false,Review contractual maturity and repayment schedule.

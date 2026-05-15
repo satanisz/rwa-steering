@@ -215,8 +215,8 @@ class MacroRegimeIndicator(GeneratedModel):
     credit_spread_bps: Decimal = Field(ge=Decimal("0"))
     yield_curve_slope_bps: Decimal
     liquidity_index: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
-    unemployment_proxy: Decimal = Field(ge=Decimal("0"))
-    gdp_growth_proxy: Decimal
+    unemployment_indicator: Decimal = Field(ge=Decimal("0"))
+    gdp_growth_indicator: Decimal
     regime_label: str
     regime_score: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
 
@@ -234,7 +234,7 @@ class RegulatoryOverlaySelection(GeneratedModel):
 
 
 class ProfitabilityInput(GeneratedModel):
-    """Synthetic profitability proxy for steering recommendations."""
+    """Prepared profitability estimate for steering recommendations."""
 
     id: str
     net_revenue: Decimal
@@ -719,8 +719,8 @@ def build_macro_regime_indicators() -> list[MacroRegimeIndicator]:
                     credit_spread_bps=q2(spread),
                     yield_curve_slope_bps=q2(slope),
                     liquidity_index=q4(liquidity),
-                    unemployment_proxy=q4(unemployment),
-                    gdp_growth_proxy=q4(gdp),
+                    unemployment_indicator=q4(unemployment),
+                    gdp_growth_indicator=q4(gdp),
                     regime_label=regime_label(spread, volatility, slope, scenario),
                     regime_score=q4(regime_score(scenario)),
                 )
@@ -762,7 +762,7 @@ def build_regulatory_overlay_selection() -> list[RegulatoryOverlaySelection]:
 
 
 def build_profitability_inputs(context: GenerationContext) -> list[ProfitabilityInput]:
-    """Generate one profitability proxy row for each synthetic core exposure."""
+    """Generate one profitability input row for each synthetic core exposure."""
     operating_rates = {
         "SOV": Decimal("0.0008"),
         "PSE": Decimal("0.0010"),
@@ -924,7 +924,7 @@ def build_data_quality_flags(context: GenerationContext) -> list[DataQualityFlag
             "MISSING_PROFITABILITY",
             2,
             False,
-            "Replace synthetic profitability proxy with finance-system feed.",
+            "Replace synthetic profitability estimate with finance-system feed.",
             deterministic_int("profitability", row_id, minimum=1, maximum=20) == 1,
         )
     return flags[:120]

@@ -74,7 +74,7 @@ class RwaResult(ApiModel):
 
 
 class RwaProjection(ApiModel):
-    """Legacy one-date projection shape returned by the calculator adapter."""
+    """Single-date projection shape returned by the calculator adapter."""
 
     id: str
     projection_date: date

@@ -10,10 +10,7 @@ from rwa_dashboard.data import (
     runoff_projection,
 )
 from rwa_dashboard.streamlit_app import (
-    CALCULATOR_MATURITY_LABEL,
-    CALCULATOR_POSITIONING_DETAILS,
-    CALCULATOR_POSITIONING_NOTE,
-    LEGACY_METHODOLOGY_LABEL,
+    RUNOFF_METHODOLOGY_LABEL,
     RUNOFF_METHODOLOGY_OPTIONS,
 )
 
@@ -55,15 +52,8 @@ def test_dashboard_frontend_exposes_only_runoff_methodology_option() -> None:
     assert RUNOFF_METHODOLOGY_OPTIONS == ("Run-off f(x,t)",)
 
 
-def test_dashboard_frontend_labels_calculator_maturity_scope() -> None:
-    assert CALCULATOR_MATURITY_LABEL == "Proxy calculator"
-    assert LEGACY_METHODOLOGY_LABEL == "Run-off f(x,t)"
-    assert "legacy scope is limited to Run-off f(x,t)" in CALCULATOR_POSITIONING_NOTE
-    assert "not a full regulatory-grade RWA engine" in CALCULATOR_POSITIONING_NOTE
-    assert any(
-        "prepared pre-prod input data" in detail for detail in CALCULATOR_POSITIONING_DETAILS
-    )
-    assert any("Run-off f(x,t) only" in detail for detail in CALCULATOR_POSITIONING_DETAILS)
+def test_dashboard_frontend_labels_runoff_methodology() -> None:
+    assert RUNOFF_METHODOLOGY_LABEL == "Run-off f(x,t)"
 
 
 def test_input_package_overview_reads_manifest_and_quality_flags() -> None:

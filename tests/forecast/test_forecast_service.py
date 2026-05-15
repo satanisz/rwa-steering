@@ -42,12 +42,12 @@ def test_var_forecast_generates_monte_carlo_paths_and_scores() -> None:
     assert all(score.terminal_rwa >= 0 for score in response.path_scores)
 
 
-def test_lstm_proxy_forecast_uses_recurrent_path_generation() -> None:
+def test_lstm_recurrent_forecast_uses_recurrent_path_generation() -> None:
     request = ForecastRequest(
         as_of_date=date(2026, 5, 15),
         horizon_months=3,
         path_count=3,
-        model_type="LSTM_PROXY",
+        model_type="LSTM_RECURRENT",
         scenario_id="STRESS",
         core_info=load_rows(3),
         random_seed=99,
@@ -56,9 +56,9 @@ def test_lstm_proxy_forecast_uses_recurrent_path_generation() -> None:
 
     response = RwaForecastService().run(request)
 
-    assert response.summary.model_type == "LSTM_PROXY"
+    assert response.summary.model_type == "LSTM_RECURRENT"
     assert response.summary.breach_probability >= 0
-    assert {step.model_type for step in response.market_paths} == {"LSTM_PROXY"}
+    assert {step.model_type for step in response.market_paths} == {"LSTM_RECURRENT"}
 
 
 def test_forecast_fastapi_endpoint() -> None:

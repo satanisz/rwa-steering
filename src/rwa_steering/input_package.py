@@ -471,7 +471,7 @@ class SteeringInputPackage:
         return distribution[-1].to_rating
 
     def profitability_for(self, row_id: str) -> ProfitabilityInput | None:
-        """Return profitability proxy for an exposure id when available."""
+        """Return profitability estimate for an exposure id when available."""
         return self._profitability.get(row_id)
 
     def constraint_for(
@@ -519,7 +519,7 @@ class SteeringInputPackage:
         )
 
     def expected_notch_shift(self, scenario_id: str) -> int:
-        """Return a compact notching proxy for response metadata."""
+        """Return a compact notching estimate for response metadata."""
         return {"BASE": 0, "DOWNSIDE": 1, "STRESS": 1, "RECOVERY": -1}.get(scenario_id, 0)
 
     def _scenario(self, scenario_id: str) -> ScenarioDefinition:

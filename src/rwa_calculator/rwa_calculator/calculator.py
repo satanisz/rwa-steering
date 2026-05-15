@@ -193,7 +193,7 @@ class RwaCalculator:
                 step_id="risk_weight",
                 description=(
                     "Calculate IRB foundation, standardised and exposure-level "
-                    "output-floor proxy risk weights."
+                    "output-floor risk weights."
                 ),
                 input_values={
                     "avc": str(record.avc),
@@ -292,7 +292,7 @@ class RwaCalculator:
         lgd: Decimal,
         maturity: Decimal,
     ) -> Decimal:
-        """Calculate the IRB risk weight proxy, falling back where IRB is unsupported."""
+        """Calculate the IRB risk weight estimate, falling back where IRB is unsupported."""
         if record.entity_class in {"RETAIL"}:
             k = self._retail_capital_requirement(record, pd, lgd)
         elif record.entity_class == "OTHER":

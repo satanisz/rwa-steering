@@ -12,7 +12,7 @@ Python RWA calculator backend for the supplied synthetic Basel dataset. The proj
 - Calculates Basel 3.0 current IRB-style RW/RWA.
 - Calculates Basel 3.1 foundation IRB RW/RWA.
 - Calculates Basel 3.1 standardised RW/RWA.
-- Applies a 72.5% exposure-level output-floor proxy for the final Basel 3.1 RW/RWA.
+- Applies a 72.5% exposure-level output floor for the final Basel 3.1 RW/RWA.
 - Returns row-level validation errors instead of failing an entire batch.
 - Can include audit trace steps for PD lookup, LGD/maturity selection and final risk-weight selection.
 

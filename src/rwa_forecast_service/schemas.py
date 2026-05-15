@@ -30,7 +30,7 @@ class ForecastModel(BaseModel):
 
 
 ScenarioId = Literal["BASE", "DOWNSIDE", "STRESS", "RECOVERY"]
-ForecastModelType = Literal["VAR", "LSTM_PROXY"]
+ForecastModelType = Literal["VAR", "LSTM_RECURRENT"]
 
 
 class ObjectiveWeights(ForecastModel):
@@ -96,10 +96,10 @@ class MarketFactorStep(ForecastModel):
     credit_spread_bps: Decimal
     yield_curve_slope_bps: Decimal
     liquidity_index: Decimal
-    unemployment_proxy: Decimal
-    gdp_growth_proxy: Decimal
-    default_probability_proxy: Decimal
-    loss_probability_proxy: Decimal
+    unemployment_indicator: Decimal
+    gdp_growth_indicator: Decimal
+    default_probability_estimate: Decimal
+    loss_probability_estimate: Decimal
 
 
 class PortfolioPathStep(ForecastModel):

@@ -252,7 +252,7 @@ class RwaSteeringPocService:
 
         Each driver is isolated by applying exactly one projection transformation and re-running
         the full portfolio through the calculator. This keeps attribution explainable and aligned
-        with the proxy calculator, while the residual discloses interaction effects between
+        with the calculator, while the residual discloses interaction effects between
         volume, maturity, ratings, DLGD and FX.
         """
 

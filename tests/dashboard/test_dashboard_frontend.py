@@ -3,7 +3,7 @@ from __future__ import annotations
 from streamlit.testing.v1 import AppTest
 
 
-def test_steering_dashboard_exposes_only_runoff_legacy_methodology() -> None:
+def test_dashboard_exposes_only_runoff_methodology() -> None:
     """Exercise the Streamlit model switch exactly as the dashboard runtime sees it."""
     app = AppTest.from_file("src/rwa_dashboard/streamlit_app.py")
     app.run(timeout=60)
