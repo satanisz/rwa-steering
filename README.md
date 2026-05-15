@@ -61,12 +61,12 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard separates closed-book run-off from true forecast/optimization:
+The Streamlit dashboard exposes a single steering model switch for the three PoC model families:
 
 - current Basel 3.1 final RWA
-- run-off projection for the existing book using monthly `f(x, t)` maturity roll-forward
-- forecast RWA using generated growth, rating migration, DLGD, FX and macro inputs
-- RWA optimization/steering with attribution and product-level recommendations
+- `Run-off f(x,t)` for the existing book using monthly maturity roll-forward
+- `Forecast Monte Carlo` using the VAR / `LSTM_PROXY` forecast service
+- `RATS optimizer` for risk-aware RWA strategy search
 - generated input package quality diagnostics
 
 Projection endpoint:

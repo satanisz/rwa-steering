@@ -10,8 +10,12 @@ import pandas as pd
 
 from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
 from rwa_calculator.rwa_calculator.calculator import RwaCalculator, load_core_csv
+from rwa_forecast_service.engine import RwaForecastService
+from rwa_forecast_service.schemas import ForecastRequest
 from rwa_projection_service.engine import RwaProjectionService
 from rwa_projection_service.schemas import ProjectionRequest
+from rwa_rats_service.engine import RwaRATSService
+from rwa_rats_service.schemas import RATSConstraints, RATSRequest, SwarmSettings
 from rwa_steering.engine import RwaSteeringPocService
 from rwa_steering.input_package import SteeringInputPackage, load_steering_input_package
 from rwa_steering.schemas import SteeringRequest
@@ -109,6 +113,45 @@ class SteeringDashboardData:
 
 
 @dataclass(frozen=True)
+class MonteCarloForecastDashboardData:
+    """Dashboard-ready output from the VAR/LSTM Monte Carlo forecast service.
+
+    This model is intentionally aggregate-first: it preserves all simulated paths for charts,
+    while keeping the selected path and top path scores close to the loss-function decision.
+    """
+
+    as_of_date: date
+    scenario_id: str
+    model_type: str
+    selected_asset_count: int
+    summary: dict[str, Any]
+    market_paths: pd.DataFrame
+    portfolio_paths: pd.DataFrame
+    path_scores: pd.DataFrame
+    selected_path: pd.DataFrame
+    limitations: list[str]
+    package_version: str | None
+    package_status: str | None
+
+
+@dataclass(frozen=True)
+class RATSDashboardData:
+    """Dashboard-ready output from the Risk-Aware Trading Swarm optimizer."""
+
+    as_of_date: date
+    projection_date: date
+    scenario_id: str
+    selected_asset_count: int
+    summary: dict[str, Any]
+    candidates: pd.DataFrame
+    best_strategy: pd.DataFrame
+    convergence: pd.DataFrame
+    limitations: list[str]
+    package_version: str | None
+    package_status: str | None
+
+
+@dataclass(frozen=True)
 class InputPackageOverview:
     """Generated-input package metadata for audit and dashboard data-quality panels."""
 
@@ -123,6 +166,12 @@ def default_as_of_date() -> date:
     """Return the generated package as-of date used as dashboard default."""
     package = load_steering_input_package()
     return min(row.as_of_date for row in package.forecast_calendar)
+
+
+def available_projection_dates(as_of_date: date) -> list[date]:
+    """Return generated future dates that can drive forecast, steering and RATS runs."""
+    package = load_steering_input_package()
+    return _generated_projection_dates(package, as_of_date, include_as_of=False)
 
 
 def load_portfolio_rows(row_limit: int | None = None) -> list[dict[str, str]]:
@@ -335,6 +384,109 @@ def steering_simulation(
         projections=_models_frame(response.projections),
         attributions=_models_frame(response.attributions),
         recommendations=_models_frame(response.recommendations),
+        limitations=response.limitations,
+        package_version=response.input_package_version,
+        package_status=response.input_package_validation_status,
+    )
+
+
+def monte_carlo_forecast(
+    as_of_date: date,
+    scenario_id: str = "BASE",
+    model_type: str = "VAR",
+    horizon_months: int = 12,
+    path_count: int = 12,
+    top_n_assets: int = 25,
+    random_seed: int = 20260515,
+) -> MonteCarloForecastDashboardData:
+    """Run the dedicated forecast service for the selected steering dashboard mode.
+
+    Unlike ``forecast_projection``, this path uses the new autoregressive service. It simulates
+    market factors, builds Monte Carlo trajectories, calculates RWA at every step and exposes the
+    path chosen by the multi-period objective function.
+    """
+    source_rows = load_portfolio_rows()
+    selected_rows = select_top_rwa_rows(
+        current_rwa_snapshot(as_of_date).results,
+        source_rows,
+        top_n_assets,
+    )
+    response = RwaForecastService().run(
+        ForecastRequest(
+            as_of_date=as_of_date,
+            horizon_months=horizon_months,
+            path_count=path_count,
+            model_type=model_type,
+            scenario_id=scenario_id,
+            core_info=selected_rows,
+            random_seed=random_seed,
+            return_top_paths=min(5, path_count),
+        )
+    )
+    return MonteCarloForecastDashboardData(
+        as_of_date=as_of_date,
+        scenario_id=scenario_id,
+        model_type=model_type,
+        selected_asset_count=len(selected_rows),
+        summary=_model_dict(response.summary),
+        market_paths=_models_frame(response.market_paths),
+        portfolio_paths=_models_frame(response.portfolio_paths),
+        path_scores=_models_frame(response.path_scores),
+        selected_path=_models_frame(response.selected_path),
+        limitations=response.limitations,
+        package_version=response.input_package_version,
+        package_status=response.input_package_validation_status,
+    )
+
+
+def rats_optimization(
+    as_of_date: date,
+    projection_date: date,
+    scenario_id: str = "STRESS",
+    top_n_assets: int = 25,
+    top_n_candidates: int = 20,
+    max_strategy_legs: int = 4,
+    particles: int = 10,
+    iterations: int = 8,
+    random_seed: int = 20260515,
+) -> RATSDashboardData:
+    """Run the RATS optimizer for the selected steering dashboard mode.
+
+    The dashboard keeps the swarm defaults bounded for interactive use. The service itself remains
+    configurable through API/CLI for larger candidate universes and longer optimization runs.
+    """
+    package = load_steering_input_package()
+    source_rows = load_portfolio_rows()
+    selected_rows = select_top_rwa_rows(
+        current_rwa_snapshot(as_of_date).results,
+        source_rows,
+        top_n_assets,
+    )
+    response = RwaRATSService(input_package=package).optimize(
+        RATSRequest(
+            as_of_date=as_of_date,
+            projection_date=projection_date,
+            scenario_id=scenario_id,
+            core_info=selected_rows,
+            top_n_candidates=top_n_candidates,
+            constraints=RATSConstraints(max_strategy_legs=max_strategy_legs),
+            swarm=SwarmSettings(
+                particles=particles,
+                iterations=iterations,
+                max_stall_iterations=max(2, min(iterations, 4)),
+                random_seed=random_seed,
+            ),
+        )
+    )
+    return RATSDashboardData(
+        as_of_date=as_of_date,
+        projection_date=projection_date,
+        scenario_id=scenario_id,
+        selected_asset_count=len(selected_rows),
+        summary=_model_dict(response.summary),
+        candidates=_models_frame(response.candidates),
+        best_strategy=_models_frame(response.best_strategy),
+        convergence=_models_frame(response.convergence),
         limitations=response.limitations,
         package_version=response.input_package_version,
         package_status=response.input_package_validation_status,
@@ -602,6 +754,14 @@ def _models_frame(models: list[Any]) -> pd.DataFrame:
         elif frame[column].map(lambda value: isinstance(value, Decimal)).any():
             frame[column] = frame[column].map(_decimal_to_float)
     return frame
+
+
+def _model_dict(model: Any) -> dict[str, Any]:
+    """Convert a single Pydantic model to dashboard-friendly scalar values."""
+    data = model.model_dump(mode="python")
+    return {
+        key: float(value) if isinstance(value, Decimal) else value for key, value in data.items()
+    }
 
 
 def _coerce_numeric_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> None:

@@ -10,12 +10,13 @@ from rwa_dashboard.data import (
     RWA_FINAL_FIELD,
     RWA_FOUNDATION_FIELD,
     RWA_STANDARDISED_FIELD,
+    available_projection_dates,
     current_rwa_snapshot,
     default_as_of_date,
-    forecast_projection,
     input_package_overview,
+    monte_carlo_forecast,
+    rats_optimization,
     runoff_projection,
-    steering_simulation,
 )
 
 RWA_LABELS = {
@@ -24,6 +25,12 @@ RWA_LABELS = {
     RWA_STANDARDISED_FIELD: "Basel 3.1 standardised",
     RWA_FINAL_FIELD: "Basel 3.1 final",
 }
+MODEL_RUNOFF = "Run-off f(x,t)"
+MODEL_FORECAST = "Forecast Monte Carlo"
+MODEL_RATS = "RATS optimizer"
+STEERING_MODEL_OPTIONS = (MODEL_RUNOFF, MODEL_FORECAST, MODEL_RATS)
+SCENARIO_OPTIONS = ("BASE", "DOWNSIDE", "STRESS", "RECOVERY")
+FORECAST_ENGINE_OPTIONS = ("VAR", "LSTM_PROXY")
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -39,19 +46,46 @@ def cached_runoff_projection(as_of_date: date, months: int, assets: int):
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def cached_forecast_projection(as_of_date: date, scenarios: tuple[str, ...], assets: int):
-    """Cache generated-input forecast projection output across Streamlit reruns."""
-    return forecast_projection(as_of_date, scenarios=list(scenarios), top_n_assets=assets)
+def cached_monte_carlo_forecast(
+    as_of_date: date,
+    scenario_id: str,
+    model_type: str,
+    horizon_months: int,
+    path_count: int,
+    assets: int,
+):
+    """Cache VAR/LSTM Monte Carlo forecast output across Streamlit reruns."""
+    return monte_carlo_forecast(
+        as_of_date=as_of_date,
+        scenario_id=scenario_id,
+        model_type=model_type,
+        horizon_months=horizon_months,
+        path_count=path_count,
+        top_n_assets=assets,
+    )
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def cached_steering(as_of_date: date, scenarios: tuple[str, ...], assets: int, top_n: int):
-    """Cache scenario steering output across Streamlit reruns."""
-    return steering_simulation(
+def cached_rats_optimization(
+    as_of_date: date,
+    projection_date: date,
+    scenario_id: str,
+    assets: int,
+    candidates: int,
+    legs: int,
+    particles: int,
+    iterations: int,
+):
+    """Cache RATS optimizer output across Streamlit reruns."""
+    return rats_optimization(
         as_of_date=as_of_date,
-        scenarios=list(scenarios),
+        projection_date=projection_date,
+        scenario_id=scenario_id,
         top_n_assets=assets,
-        top_n_recommendations=top_n,
+        top_n_candidates=candidates,
+        max_strategy_legs=legs,
+        particles=particles,
+        iterations=iterations,
     )
 
 
@@ -68,51 +102,106 @@ def main() -> None:
     default_date = default_as_of_date()
     st.sidebar.title("Parametry")
     as_of_date = st.sidebar.date_input("Dzień kalkulacji", value=default_date)
-    projected_months = st.sidebar.slider("Horyzont run-off w miesiącach", 1, 24, 24)
-    runoff_assets = st.sidebar.slider("Aktywa w run-off", 10, 300, 100, 10)
-    forecast_assets = st.sidebar.slider("Aktywa w forecast/steering", 10, 200, 75, 5)
-    scenarios = st.sidebar.multiselect(
-        "Scenariusze",
-        ["BASE", "DOWNSIDE", "STRESS", "RECOVERY"],
-        default=["BASE", "STRESS"],
+    selected_model = model_selector()
+    scenario_id = st.sidebar.selectbox(
+        "Scenariusz",
+        SCENARIO_OPTIONS,
+        index=SCENARIO_OPTIONS.index("STRESS") if selected_model == MODEL_RATS else 0,
     )
-    top_n_recommendations = st.sidebar.slider("Rekomendacje", 1, 25, 10)
 
-    selected_scenarios = tuple(scenarios or ["BASE"])
     snapshot = cached_current(as_of_date)
 
     st.title("RWA Steering Dashboard")
     st.caption(f"Dane syntetyczne pre-prod, as-of {as_of_date.isoformat()}")
 
-    tab_current, tab_runoff, tab_forecast, tab_steering, tab_data = st.tabs(
-        ["RWA dzisiaj", "Run-off", "Forecast RWA", "Optimization", "Dane i jakość"]
-    )
+    tab_current, tab_model, tab_data = st.tabs(["RWA dzisiaj", "Steering model", "Dane i jakość"])
 
     with tab_current:
         render_current(snapshot)
 
-    with tab_runoff:
-        with st.spinner("Liczenie run-off obecnego portfela..."):
-            runoff = cached_runoff_projection(as_of_date, projected_months, runoff_assets)
-        render_runoff(runoff)
-
-    with tab_forecast:
-        with st.spinner("Forecast zmiennych i liczenie projected RWA..."):
-            forecast = cached_forecast_projection(as_of_date, selected_scenarios, forecast_assets)
-        render_forecast(forecast)
-
-    with tab_steering:
-        with st.spinner("Liczenie optymalizacji RWA..."):
-            steering = cached_steering(
-                as_of_date,
-                selected_scenarios,
-                forecast_assets,
-                top_n_recommendations,
-            )
-        render_steering(steering)
+    with tab_model:
+        render_selected_model(selected_model, as_of_date, str(scenario_id))
 
     with tab_data:
         render_input_package(cached_input_package())
+
+
+def model_selector() -> str:
+    """Render the steering model switch with a Streamlit-version-safe fallback."""
+    control = getattr(st.sidebar, "segmented_control", None)
+    if callable(control):
+        return str(
+            control(
+                "Model steeringu",
+                options=STEERING_MODEL_OPTIONS,
+                default=MODEL_FORECAST,
+            )
+            or MODEL_FORECAST
+        )
+    return str(
+        st.sidebar.radio(
+            "Model steeringu",
+            STEERING_MODEL_OPTIONS,
+            index=STEERING_MODEL_OPTIONS.index(MODEL_FORECAST),
+        )
+    )
+
+
+def render_selected_model(selected_model: str, as_of_date: date, scenario_id: str) -> None:
+    """Run and render exactly one selected steering model."""
+    st.subheader(selected_model)
+    if selected_model == MODEL_RUNOFF:
+        projected_months = st.slider("Horyzont run-off w miesiącach", 1, 24, 24)
+        assets = st.slider("Aktywa w run-off", 10, 300, 100, 10)
+        with st.spinner("Liczenie run-off obecnego portfela..."):
+            runoff = cached_runoff_projection(as_of_date, projected_months, assets)
+        render_runoff(runoff)
+        return
+
+    if selected_model == MODEL_FORECAST:
+        model_type = st.selectbox("Silnik forecastu", FORECAST_ENGINE_OPTIONS)
+        horizon_months = st.slider("Horyzont forecastu w miesiącach", 1, 36, 12)
+        path_count = st.slider("Trajektorie Monte Carlo", 2, 100, 12, 1)
+        assets = st.slider("Aktywa w forecast", 3, 100, 25, 1)
+        with st.spinner("Symulacja VAR/LSTM i Monte Carlo trajectories..."):
+            forecast = cached_monte_carlo_forecast(
+                as_of_date,
+                scenario_id,
+                str(model_type),
+                horizon_months,
+                path_count,
+                assets,
+            )
+        render_monte_carlo_forecast(forecast)
+        return
+
+    projection_dates = available_projection_dates(as_of_date)
+    if not projection_dates:
+        st.error("Brak wygenerowanych dat projekcji dla wybranego as-of.")
+        return
+    projection_date = st.selectbox(
+        "Data optymalizacji",
+        projection_dates,
+        index=len(projection_dates) - 1,
+        format_func=lambda value: value.isoformat(),
+    )
+    assets = st.slider("Aktywa w RATS", 4, 80, 25, 1)
+    candidates = st.slider("Kandydaci UEI", 4, 50, 20, 1)
+    legs = st.slider("Maksymalna liczba legs", 1, 10, 4, 1)
+    particles = st.slider("Particles", 4, 40, 10, 1)
+    iterations = st.slider("Iterations", 1, 40, 8, 1)
+    with st.spinner("Liczenie Risk-Aware Trading Swarm..."):
+        rats = cached_rats_optimization(
+            as_of_date,
+            projection_date,
+            scenario_id,
+            assets,
+            candidates,
+            legs,
+            particles,
+            iterations,
+        )
+    render_rats(rats)
 
 
 def render_current(snapshot) -> None:
@@ -146,7 +235,7 @@ def render_current(snapshot) -> None:
                 ],
             )
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width="stretch")
     with right:
         st.subheader("Stack Basel")
         stack = (
@@ -159,10 +248,10 @@ def render_current(snapshot) -> None:
                 tooltip=["measure", alt.Tooltip("rwa:Q", format=",.0f")],
             )
         )
-        st.altair_chart(stack, use_container_width=True)
+        st.altair_chart(stack, width="stretch")
 
     st.subheader("Największe kontrybutory RWA")
-    st.dataframe(format_table(snapshot.top_assets), use_container_width=True, hide_index=True)
+    st.dataframe(format_table(snapshot.top_assets), width="stretch", hide_index=True)
 
 
 def render_runoff(projection) -> None:
@@ -194,7 +283,7 @@ def render_runoff(projection) -> None:
             ],
         )
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
     selected_asset = st.selectbox(
         "Asset",
@@ -217,8 +306,8 @@ def render_runoff(projection) -> None:
             ],
         )
     )
-    st.altair_chart(asset_chart, use_container_width=True)
-    st.dataframe(format_table(asset_frame), use_container_width=True, hide_index=True)
+    st.altair_chart(asset_chart, width="stretch")
+    st.dataframe(format_table(asset_frame), width="stretch", hide_index=True)
 
 
 def render_forecast(forecast) -> None:
@@ -245,7 +334,7 @@ def render_forecast(forecast) -> None:
             ],
         )
     )
-    st.altair_chart(rwa_chart, use_container_width=True)
+    st.altair_chart(rwa_chart, width="stretch")
 
     left, right = st.columns([1, 1])
     with left:
@@ -264,7 +353,7 @@ def render_forecast(forecast) -> None:
                 ],
             )
         )
-        st.altair_chart(exposure_chart, use_container_width=True)
+        st.altair_chart(exposure_chart, width="stretch")
     with right:
         migration_chart = (
             alt.Chart(forecast.aggregate)
@@ -281,12 +370,12 @@ def render_forecast(forecast) -> None:
                 ],
             )
         )
-        st.altair_chart(migration_chart, use_container_width=True)
+        st.altair_chart(migration_chart, width="stretch")
 
     latest_date = forecast.aggregate["projection_date"].max()
     latest = forecast.aggregate[forecast.aggregate["projection_date"] == latest_date]
     st.subheader(f"Forecast drivers na {pd.Timestamp(latest_date).date().isoformat()}")
-    st.dataframe(format_table(latest), use_container_width=True, hide_index=True)
+    st.dataframe(format_table(latest), width="stretch", hide_index=True)
 
     scenario_id = st.selectbox("Forecast scenario", forecast.scenarios)
     available_dates = sorted(
@@ -315,9 +404,172 @@ def render_forecast(forecast) -> None:
     ]
     st.dataframe(
         format_table(detail[detail_columns].sort_values(RWA_FINAL_FIELD, ascending=False)),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
+
+
+def render_monte_carlo_forecast(forecast) -> None:
+    """Render VAR/LSTM Monte Carlo forecast paths and selected trajectory."""
+    summary = forecast.summary
+    col_assets, col_paths, col_selected, col_breach = st.columns(4)
+    col_assets.metric("Aktywa w forecast", forecast.selected_asset_count)
+    col_paths.metric("Trajektorie", int(summary["path_count"]))
+    col_selected.metric("Wybrana ścieżka", int(summary["selected_path_id"]))
+    col_breach.metric("P(breach)", format_pct(summary["breach_probability"]))
+
+    col_rwa, col_profit, col_status = st.columns(3)
+    col_rwa.metric("Selected terminal RWA", format_money(summary["selected_terminal_rwa"]))
+    col_profit.metric("Selected profit", format_money(summary["selected_cumulative_profit"]))
+    col_status.metric("Status inputów", forecast.package_status or "unknown")
+
+    if forecast.portfolio_paths.empty:
+        st.warning("Forecast nie zwrócił ścieżek portfela.")
+        return
+
+    path_chart = (
+        alt.Chart(forecast.portfolio_paths)
+        .mark_line(point=False, opacity=0.45)
+        .encode(
+            x=alt.X("projection_date:T", title="Data"),
+            y=alt.Y("rwa:Q", title="RWA"),
+            color=alt.Color("path_id:N", title="Ścieżka"),
+            tooltip=[
+                "path_id",
+                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("rwa:Q", format=",.0f"),
+                alt.Tooltip("capital_ratio:Q", format=".2%"),
+            ],
+        )
+    )
+    selected_chart = (
+        alt.Chart(forecast.selected_path)
+        .mark_line(point=True, strokeWidth=4)
+        .encode(
+            x=alt.X("projection_date:T", title="Data"),
+            y=alt.Y("rwa:Q", title="RWA"),
+            tooltip=[
+                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("rwa:Q", format=",.0f"),
+                alt.Tooltip("cumulative_profit:Q", format=",.0f"),
+                alt.Tooltip("turnover_amount:Q", format=",.0f"),
+            ],
+        )
+    )
+    st.altair_chart(path_chart + selected_chart, width="stretch")
+
+    selected_path_id = int(summary["selected_path_id"])
+    selected_market = forecast.market_paths[forecast.market_paths["path_id"] == selected_path_id]
+    factor_columns = [
+        "volatility_index",
+        "credit_spread_bps",
+        "liquidity_index",
+        "default_probability_proxy",
+        "loss_probability_proxy",
+    ]
+    factors = selected_market[["projection_date", *factor_columns]].melt(
+        id_vars="projection_date",
+        var_name="Factor",
+        value_name="Value",
+    )
+    factor_chart = (
+        alt.Chart(factors)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("projection_date:T", title="Data"),
+            y=alt.Y("Value:Q", title="Wartość"),
+            color=alt.Color("Factor:N"),
+            tooltip=[
+                "Factor",
+                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("Value:Q", format=",.4f"),
+            ],
+        )
+    )
+    st.altair_chart(factor_chart, width="stretch")
+
+    left, right = st.columns([1, 1])
+    with left:
+        st.subheader("Top path scores")
+        st.dataframe(format_table(forecast.path_scores), width="stretch", hide_index=True)
+    with right:
+        st.subheader("Selected path")
+        st.dataframe(
+            format_table(forecast.selected_path),
+            width="stretch",
+            hide_index=True,
+        )
+
+
+def render_rats(rats) -> None:
+    """Render Risk-Aware Trading Swarm optimization output."""
+    summary = rats.summary
+    col_assets, col_status, col_feasible, col_legs = st.columns(4)
+    col_assets.metric("Aktywa w RATS", rats.selected_asset_count)
+    col_status.metric("Status inputów", rats.package_status or "unknown")
+    col_feasible.metric("Feasible", "yes" if summary["feasible"] else "no")
+    col_legs.metric("Selected legs", int(summary["selected_legs"]))
+
+    col_before, col_after, col_saving, col_cost = st.columns(4)
+    col_before.metric(
+        "Projected RWA before",
+        format_money(summary["projected_rwa_before_strategy"]),
+    )
+    col_after.metric("Optimized RWA", format_money(summary["optimized_projected_rwa"]))
+    col_saving.metric("RWA saving", format_money(summary["rwa_saving"]))
+    col_cost.metric("Business cost", format_money(summary["total_business_cost"]))
+
+    comparison = pd.DataFrame(
+        [
+            {
+                "Stage": "Projected before strategy",
+                "RWA": summary["projected_rwa_before_strategy"],
+            },
+            {
+                "Stage": "Optimized projected RWA",
+                "RWA": summary["optimized_projected_rwa"],
+            },
+        ]
+    )
+    comparison_chart = (
+        alt.Chart(comparison)
+        .mark_bar()
+        .encode(
+            x=alt.X("RWA:Q", title="RWA"),
+            y=alt.Y("Stage:N", title=None, sort="-x"),
+            color=alt.Color("Stage:N", legend=None),
+            tooltip=["Stage", alt.Tooltip("RWA:Q", format=",.0f")],
+        )
+    )
+    st.altair_chart(comparison_chart, width="stretch")
+
+    if not rats.convergence.empty:
+        convergence_chart = (
+            alt.Chart(rats.convergence)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("iteration:O", title="Iteration"),
+                y=alt.Y("global_best_objective:Q", title="Objective"),
+                tooltip=[
+                    "iteration",
+                    alt.Tooltip("global_best_objective:Q", format=",.0f"),
+                    alt.Tooltip("global_best_rwa_saving:Q", format=",.0f"),
+                    alt.Tooltip("feasible_particle_ratio:Q", format=".2%"),
+                ],
+            )
+        )
+        st.altair_chart(convergence_chart, width="stretch")
+
+    if summary["constraint_violations"]:
+        st.warning(", ".join(summary["constraint_violations"]))
+
+    left, right = st.columns([1, 1])
+    with left:
+        st.subheader("Best strategy")
+        st.dataframe(format_table(rats.best_strategy), width="stretch", hide_index=True)
+    with right:
+        st.subheader("Top UEI candidates")
+        st.dataframe(format_table(rats.candidates), width="stretch", hide_index=True)
 
 
 def render_steering(steering) -> None:
@@ -349,7 +601,7 @@ def render_steering(steering) -> None:
             ],
         )
     )
-    st.altair_chart(scenario_chart, use_container_width=True)
+    st.altair_chart(scenario_chart, width="stretch")
 
     latest_date = steering.attributions["projection_date"].max()
     attribution = steering.attributions[steering.attributions["projection_date"] == latest_date]
@@ -380,7 +632,7 @@ def render_steering(steering) -> None:
         )
     )
     st.subheader(f"Atrybucja na {pd.Timestamp(latest_date).date().isoformat()}")
-    st.altair_chart(attribution_chart, use_container_width=True)
+    st.altair_chart(attribution_chart, width="stretch")
 
     st.subheader("Rekomendowane działania")
     if steering.recommendations.empty:
@@ -407,8 +659,8 @@ def render_steering(steering) -> None:
             ],
         )
     )
-    st.altair_chart(savings_chart, use_container_width=True)
-    st.dataframe(format_table(steering.recommendations), use_container_width=True, hide_index=True)
+    st.altair_chart(savings_chart, width="stretch")
+    st.dataframe(format_table(steering.recommendations), width="stretch", hide_index=True)
 
 
 def render_input_package(overview) -> None:
@@ -422,14 +674,14 @@ def render_input_package(overview) -> None:
     left, right = st.columns([1, 1])
     with left:
         st.subheader("Wygenerowane pliki")
-        st.dataframe(overview.row_counts, use_container_width=True, hide_index=True)
+        st.dataframe(overview.row_counts, width="stretch", hide_index=True)
     with right:
         st.subheader("Quality flags")
-        st.dataframe(overview.data_quality_summary, use_container_width=True, hide_index=True)
+        st.dataframe(overview.data_quality_summary, width="stretch", hide_index=True)
 
     st.subheader("Quality gates")
     gates = pd.DataFrame({"quality_gate": overview.validation_report["quality_gates"]})
-    st.dataframe(gates, use_container_width=True, hide_index=True)
+    st.dataframe(gates, width="stretch", hide_index=True)
 
 
 def format_money(value: float | int | None) -> str:
