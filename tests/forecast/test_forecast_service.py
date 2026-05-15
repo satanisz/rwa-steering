@@ -37,6 +37,8 @@ def test_var_forecast_generates_monte_carlo_paths_and_scores() -> None:
     assert response.summary.selected_path_id in {0, 1, 2, 3}
     assert len(response.market_paths) == 4 * 7
     assert len(response.portfolio_paths) == 4 * 7
+    assert response.sector_paths
+    assert {step.sector for step in response.sector_paths}
     assert len(response.path_scores) == 3
     assert response.selected_path
     assert all(score.terminal_rwa >= 0 for score in response.path_scores)
@@ -83,3 +85,4 @@ def test_forecast_fastapi_endpoint() -> None:
     assert payload["forecast_engine_version"] == FORECAST_ENGINE_VERSION
     assert payload["summary"]["path_count"] == 2
     assert len(payload["selected_path"]) == 3
+    assert payload["sector_paths"]

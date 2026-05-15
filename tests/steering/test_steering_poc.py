@@ -7,7 +7,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
-from rwa_steering.engine import RwaSteeringPocService
+from rwa_steering.engine import RwaSteeringService
 from rwa_steering.fastapi_app import create_app
 from rwa_steering.schemas import SteeringRequest
 from rwa_steering.transformations import migrate_rating
@@ -27,7 +27,7 @@ def test_rating_migration_moves_down_and_up_on_nccr_scale() -> None:
 
 def test_steering_poc_runs_scenarios_attribution_and_recommendations() -> None:
     rows = load_rows()
-    response = RwaSteeringPocService().run(
+    response = RwaSteeringService().run(
         SteeringRequest(
             as_of_date=date(2026, 1, 1),
             projection_dates=[date(2026, 12, 31), date(2027, 12, 31)],
@@ -37,11 +37,16 @@ def test_steering_poc_runs_scenarios_attribution_and_recommendations() -> None:
         )
     )
 
-    assert response.methodology.startswith("Regime-aware RWA steering PoC")
+    assert response.methodology.startswith("Regime-aware RWA steering")
     assert len(response.summaries) == 4
     assert len(response.attributions) == 4
     assert len(response.projections) == 40
     assert response.recommendations
+    assert all(
+        projection.sector == rows_by_id(rows)[projection.id]["sector"]
+        for projection in response.projections
+    )
+    assert all(recommendation.sector for recommendation in response.recommendations)
     assert response.recommendations == sorted(
         response.recommendations,
         key=lambda item: item.recommendation_score,
@@ -60,7 +65,7 @@ def test_steering_poc_runs_scenarios_attribution_and_recommendations() -> None:
 
 def test_steering_stress_projection_contains_rating_deterioration() -> None:
     row = load_rows(1)[0]
-    response = RwaSteeringPocService().run(
+    response = RwaSteeringService().run(
         SteeringRequest(
             as_of_date=date(2026, 1, 1),
             projection_dates=[date(2026, 12, 31)],
@@ -72,9 +77,14 @@ def test_steering_stress_projection_contains_rating_deterioration() -> None:
     projection = response.projections[0]
 
     assert projection.scenario_id == "STRESS"
+    assert projection.sector == row["sector"]
     assert projection.current_rating == row["counterparty_fcy_internal_rating"]
     assert projection.projected_rating != projection.current_rating
     assert projection.projected_dlgd >= projection.current_dlgd
+
+
+def rows_by_id(rows: list[dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {row["id"]: row for row in rows}
 
 
 def test_steering_fastapi_endpoint() -> None:

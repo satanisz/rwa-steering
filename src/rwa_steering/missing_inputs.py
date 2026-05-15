@@ -28,11 +28,11 @@ from rwa_calculator.rwa_calculator.calculator import RwaCalculator, load_core_cs
 from rwa_calculator.rwa_calculator.models import ENTITY_CLASSES, EXPOSURE_SUB_CLASSES
 from rwa_calculator.rwa_calculator.reference import load_nccr_mapping
 
-PACKAGE_NAME = "rwa_steering_missing_inputs_seed"
-VERSION_ID = "2026Q2_HACKATHON_SEED_V1"
-SYNTHETIC_SOURCE = "synthetic_hackathon_seed"
+PACKAGE_NAME = "rwa_steering_prepared_inputs"
+VERSION_ID = "2026Q2_PREPARED_INPUTS_V1"
+SYNTHETIC_SOURCE = "prepared_scenario_seed"
 PREPARED_CAPITAL_SOURCE = "prepared_preprod_capital_seed"
-CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
+CAPITAL_PORTFOLIO_ID = "BANKING_BOOK"
 RANDOM_SEED = 20260515
 AS_OF_DATE = date(2026, 5, 15)
 YEARS = (2026, 2027, 2028, 2029, 2030)
@@ -207,7 +207,7 @@ class FxScenarioRate(GeneratedModel):
 
 
 class MacroRegimeIndicator(GeneratedModel):
-    """Rule-based macro regime features inspired by the steering PoC article."""
+    """Rule-based macro regime features used by the steering service."""
 
     scenario_id: str
     projection_date: date
@@ -732,7 +732,7 @@ def build_regulatory_overlay_selection() -> list[RegulatoryOverlaySelection]:
     """Map seed portfolios to the jurisdiction overlays already present in reference data."""
     return [
         RegulatoryOverlaySelection(
-            portfolio_id="POC_EU_BANKING_BOOK",
+            portfolio_id="EU_BANKING_BOOK",
             legal_entity_id="LE_EU_001",
             jurisdiction_overlay="EU_CRR3_EBA",
             reporting_currency="EUR",
@@ -741,7 +741,7 @@ def build_regulatory_overlay_selection() -> list[RegulatoryOverlaySelection]:
             national_discretion_profile="EU_CRR3_SEED",
         ),
         RegulatoryOverlaySelection(
-            portfolio_id="POC_UK_BANKING_BOOK",
+            portfolio_id="UK_BANKING_BOOK",
             legal_entity_id="LE_UK_001",
             jurisdiction_overlay="UK_PRA_BASEL_3_1",
             reporting_currency="GBP",
@@ -750,7 +750,7 @@ def build_regulatory_overlay_selection() -> list[RegulatoryOverlaySelection]:
             national_discretion_profile="UK_PRA_SEED",
         ),
         RegulatoryOverlaySelection(
-            portfolio_id="POC_CH_BANKING_BOOK",
+            portfolio_id="CH_BANKING_BOOK",
             legal_entity_id="LE_CH_001",
             jurisdiction_overlay="CH_FINMA_BASEL_III_FINAL",
             reporting_currency="CHF",
@@ -858,7 +858,7 @@ def build_portfolio_strategy_limits(
             for entity_class, sub_class in context.segment_pairs:
                 rows.append(
                     PortfolioStrategyLimit(
-                        portfolio_id="POC_BANKING_BOOK",
+                        portfolio_id=CAPITAL_PORTFOLIO_ID,
                         scenario_id=scenario,
                         projection_year=year,
                         entity_class=entity_class,
@@ -1259,7 +1259,7 @@ def build_readme() -> str:
     """Return README content explaining generated-input purpose and regeneration."""
     return f"""# RWA Steering Generated Missing Inputs
 
-This directory contains generated, non-production inputs for the RWA Steering PoC.
+This directory contains generated, non-production inputs for the RWA steering service.
 The package is deterministic from seed `{RANDOM_SEED}` and version `{VERSION_ID}`.
 
 These files fill the steering gaps that do not belong inside the RWA calculator:
@@ -1274,9 +1274,9 @@ Regenerate with:
 uv run rwa-generate-missing-inputs
 ```
 
-The data is suitable for hackathon demos and automated tests only. It must not be
-presented as production customer data, calibrated market forecasts or approved
-regulatory reference data.
+The data is suitable for controlled pre-production demonstrations and automated tests only.
+It must not be presented as production customer data, calibrated market forecasts or approved
+regulatory reference data without the appropriate governance sign-off.
 """
 
 

@@ -1,5 +1,5 @@
 scenario_id,scenario_name,scenario_type,severity_level,description,is_active,assumption_version
-BASE,Base case,business_as_usual,1,Expected portfolio evolution under normal credit conditions.,true,2026Q2_HACKATHON_SEED_V1
-DOWNSIDE,Downside,macro_credit_downside,2,Mild credit deterioration with moderate downgrade pressure.,true,2026Q2_HACKATHON_SEED_V1
-STRESS,Stress,macro_credit_stress,3,Severe but plausible credit stress with broad downgrade and LGD pressure.,true,2026Q2_HACKATHON_SEED_V1
-RECOVERY,Recovery,macro_credit_recovery,0,Improving credit environment with selective rating upgrades.,true,2026Q2_HACKATHON_SEED_V1
+BASE,Base case,business_as_usual,1,Expected portfolio evolution under normal credit conditions.,true,2026Q2_PREPARED_INPUTS_V1
+DOWNSIDE,Downside,macro_credit_downside,2,Mild credit deterioration with moderate downgrade pressure.,true,2026Q2_PREPARED_INPUTS_V1
+STRESS,Stress,macro_credit_stress,3,Severe but plausible credit stress with broad downgrade and LGD pressure.,true,2026Q2_PREPARED_INPUTS_V1
+RECOVERY,Recovery,macro_credit_recovery,0,Improving credit environment with selective rating upgrades.,true,2026Q2_PREPARED_INPUTS_V1

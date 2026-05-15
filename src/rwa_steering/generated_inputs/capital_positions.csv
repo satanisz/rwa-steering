@@ -1,2 +1,2 @@
 portfolio_id,calculation_date,cet1_capital,tier1_capital,total_capital,gsib_higher_loss_absorbency_requirement,source
-POC_BANKING_BOOK,2026-05-15,3246885916.61,3694732249.94,4142578583.27,0.0100,prepared_preprod_capital_seed
+BANKING_BOOK,2026-05-15,3246885916.61,3694732249.94,4142578583.27,0.0100,prepared_preprod_capital_seed

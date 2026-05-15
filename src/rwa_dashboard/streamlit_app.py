@@ -15,6 +15,7 @@ from rwa_dashboard.data import (
     default_as_of_date,
     forecast_projection,
     input_package_overview,
+    model_run_set,
     monte_carlo_forecast,
     rats_optimization,
     regulatory_capital_snapshot,
@@ -26,7 +27,7 @@ RWA_LABELS = {
     "basel_3_0_rwa": "Basel 3.0",
     RWA_FOUNDATION_FIELD: "Basel 3.1 foundation",
     RWA_STANDARDISED_FIELD: "Basel 3.1 standardised",
-    RWA_FINAL_FIELD: "Basel 3.1 row-level proxy",
+    RWA_FINAL_FIELD: "Basel 3.1 final",
 }
 MODEL_RUNOFF = "Run-off f(x,t)"
 MODEL_SCENARIO_FORECAST = "Forecast scenarios"
@@ -48,6 +49,15 @@ AGENT_SLOT_NAMES = (
     "Data Quality Agent",
     "Evidence Pack Agent",
     "Board Commentary Agent",
+)
+APP_PAGES = (
+    "Exposure Upload",
+    "RWA Dashboard",
+    "Portfolio Analytics",
+    "Scenario Analysis",
+    "Data Lineage",
+    "Reports & Evidence",
+    "RWA Intelligence Briefing",
 )
 
 CONTROL_TOWER_CSS = """
@@ -338,7 +348,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 
 .evidence-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
     gap: 0.85rem;
 }
 
@@ -448,18 +458,35 @@ def cached_input_package():
     return input_package_overview()
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_model_run_set(as_of_date: date, scenario_id: str):
+    """Cache calculated outputs for all dashboard model surfaces."""
+    return model_run_set(
+        as_of_date=as_of_date,
+        scenario_id=scenario_id,
+        runoff_assets=50,
+        forecast_assets=25,
+        monte_carlo_assets=15,
+        steering_assets=25,
+        rats_assets=15,
+        rats_candidates=12,
+        rats_particles=6,
+        rats_iterations=5,
+    )
+
+
 def apply_control_tower_theme() -> None:
     """Apply the Control Tower visual layer used by the dashboard shell."""
     st.markdown(CONTROL_TOWER_CSS, unsafe_allow_html=True)
 
 
-def render_control_tower_sidebar(overview) -> None:
-    """Render static navigation and package health in the Streamlit sidebar."""
+def render_control_tower_sidebar(overview) -> str:
+    """Render real page navigation and package health in the Streamlit sidebar."""
     generated_files = len(overview.manifest["generated_files"])
     quality_gates = len(overview.validation_report["quality_gates"])
     validation_status = overview.manifest["validation_status"]
     st.sidebar.markdown(
-        f"""
+        """
         <div class="tower-brand">
             <div class="tower-logo">RWA</div>
             <div>
@@ -468,13 +495,18 @@ def render_control_tower_sidebar(overview) -> None:
             </div>
         </div>
         <div class="sidebar-section-label">Navigation</div>
-        <div class="tower-nav-item">Exposure Upload</div>
-        <div class="tower-nav-item active">RWA Dashboard</div>
-        <div class="tower-nav-item">Portfolio Analytics</div>
-        <div class="tower-nav-item">Scenario Analysis</div>
-        <div class="tower-nav-item">Data Lineage</div>
-        <div class="tower-nav-item">Reports & Evidence</div>
-        <div class="tower-nav-item">RWA Intelligence Briefing</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    page = st.sidebar.radio(
+        "Navigation",
+        APP_PAGES,
+        index=APP_PAGES.index("RWA Dashboard"),
+        label_visibility="collapsed",
+        key="app_page",
+    )
+    st.sidebar.markdown(
+        f"""
         <div class="sidebar-section-label">Controls</div>
         <div class="tower-sidebar-status">
             <strong>System status</strong>
@@ -492,22 +524,24 @@ def render_control_tower_sidebar(overview) -> None:
         """,
         unsafe_allow_html=True,
     )
+    return str(page)
 
 
 def render_page_header(
+    page: str,
     as_of_date: date,
     selected_model: str,
     scenario_id: str,
     overview,
 ) -> None:
     """Render the dashboard topbar and page title in the concept style."""
-    package_version = overview.manifest["version_id"]
+    package_version = display_version(overview.manifest["version_id"])
     validation_status = overview.manifest["validation_status"]
     st.markdown(
         f"""
         <div class="tower-topbar">
             <div class="tower-breadcrumb">
-                Home &gt; RWA Dashboard &gt; {selected_model}
+                Home &gt; {page} &gt; {selected_model}
             </div>
             <div class="tower-actions">
                 <span class="tower-pill success">PREPROD</span>
@@ -518,7 +552,7 @@ def render_page_header(
         </div>
         <div class="tower-title-row">
             <div>
-                <div class="tower-title">RWA Control Tower</div>
+                <div class="tower-title">{page}</div>
                 <div class="tower-subtitle">
                     Prepared input package {package_version}; calculations use generated CSV data
                     and calculator outputs, not inline fallback values.
@@ -537,35 +571,31 @@ def main() -> None:
 
     default_date = default_as_of_date()
     overview = cached_input_package()
-    render_control_tower_sidebar(overview)
-    as_of_date = st.sidebar.date_input("Dzień kalkulacji", value=default_date)
+    page = render_control_tower_sidebar(overview)
+    as_of_date = st.sidebar.date_input("Reporting date", value=default_date)
     selected_model = model_selector()
     scenario_id = st.sidebar.selectbox(
-        "Scenariusz",
+        "Scenario",
         SCENARIO_OPTIONS,
         index=SCENARIO_OPTIONS.index("STRESS") if selected_model == MODEL_RATS else 0,
     )
 
     snapshot = cached_current(as_of_date)
     capital = cached_regulatory_capital(as_of_date)
+    with st.spinner("Calculating model run set from prepared inputs..."):
+        runs = cached_model_run_set(as_of_date, str(scenario_id))
 
-    render_page_header(as_of_date, selected_model, str(scenario_id), overview)
-
-    tab_current, tab_model, tab_data = st.tabs(["RWA dzisiaj", "Steering model", "Dane i jakość"])
-
-    with tab_current:
-        render_current(snapshot)
-        render_regulatory_capital(capital)
-
-    with tab_model:
-        render_selected_model(selected_model, as_of_date, str(scenario_id))
-
-    with tab_data:
-        agent_view, data_view = st.tabs(["RWA Intelligence Briefing", "Data & Evidence"])
-        with agent_view:
-            render_agent_briefing(snapshot, capital, overview, as_of_date)
-        with data_view:
-            render_input_package(overview)
+    render_page_header(page, as_of_date, selected_model, str(scenario_id), overview)
+    render_page(
+        page=page,
+        snapshot=snapshot,
+        capital=capital,
+        overview=overview,
+        runs=runs,
+        selected_model=selected_model,
+        as_of_date=as_of_date,
+        scenario_id=str(scenario_id),
+    )
 
 
 def model_selector() -> str:
@@ -574,7 +604,7 @@ def model_selector() -> str:
     if callable(control):
         return str(
             control(
-                "Model steeringu",
+                "Model drill-down",
                 options=STEERING_MODEL_OPTIONS,
                 default=MODEL_FORECAST,
             )
@@ -582,37 +612,258 @@ def model_selector() -> str:
         )
     return str(
         st.sidebar.radio(
-            "Model steeringu",
+            "Model drill-down",
             STEERING_MODEL_OPTIONS,
             index=STEERING_MODEL_OPTIONS.index(MODEL_FORECAST),
         )
     )
 
 
+def render_page(
+    *,
+    page: str,
+    snapshot,
+    capital,
+    overview,
+    runs,
+    selected_model: str,
+    as_of_date: date,
+    scenario_id: str,
+) -> None:
+    """Dispatch the selected app page."""
+    if page == "Exposure Upload":
+        render_exposure_upload(snapshot, overview)
+        return
+    if page == "RWA Dashboard":
+        render_rwa_dashboard(snapshot, capital, runs)
+        return
+    if page == "Portfolio Analytics":
+        render_portfolio_analytics(snapshot, runs)
+        return
+    if page == "Scenario Analysis":
+        render_scenario_analysis(runs, selected_model)
+        return
+    if page == "Data Lineage":
+        render_data_lineage(snapshot, capital, overview, runs)
+        return
+    if page == "Reports & Evidence":
+        render_reports_evidence(snapshot, capital, overview, runs, as_of_date, scenario_id)
+        return
+    render_agent_briefing(snapshot, capital, overview, as_of_date, runs)
+
+
+def render_rwa_dashboard(snapshot, capital, runs) -> None:
+    """Render the management dashboard with every model output represented."""
+    render_current(snapshot)
+
+    st.subheader("Model projection coverage")
+    st.dataframe(format_table(runs.model_summary), width="stretch", hide_index=True)
+
+    if not runs.projection_comparison.empty:
+        comparison_chart = (
+            alt.Chart(runs.projection_comparison)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("projection_date:T", title="Projection date"),
+                y=alt.Y("projected_rwa:Q", title="Projected RWA"),
+                color=alt.Color("model:N", title="Model"),
+                strokeDash=alt.StrokeDash("scenario_id:N", title="Scenario"),
+                tooltip=[
+                    "model",
+                    "scenario_id",
+                    "stage",
+                    alt.Tooltip("projection_date:T", title="Projection date"),
+                    alt.Tooltip("projected_rwa:Q", format=",.0f"),
+                ],
+            )
+        )
+        st.altair_chart(comparison_chart, width="stretch")
+
+    if not runs.sector_projection.empty:
+        st.subheader("Projected RWA by sector and model")
+        latest_by_model = (
+            runs.sector_projection.sort_values("projection_date")
+            .groupby(
+                ["model", "sector"],
+                as_index=False,
+                dropna=False,
+            )
+            .tail(1)
+        )
+        sector_chart = (
+            alt.Chart(latest_by_model)
+            .mark_bar()
+            .encode(
+                x=alt.X("projected_rwa:Q", title="Projected RWA"),
+                y=alt.Y("sector:N", title=None, sort="-x"),
+                color=alt.Color("model:N", title="Model"),
+                tooltip=[
+                    "model",
+                    "scenario_id",
+                    "sector",
+                    "stage",
+                    alt.Tooltip("projected_rwa:Q", format=",.0f"),
+                    "asset_count",
+                ],
+            )
+        )
+        st.altair_chart(sector_chart, width="stretch")
+
+    render_regulatory_capital(capital)
+
+
+def render_exposure_upload(snapshot, overview) -> None:
+    """Render prepared exposure input status and portfolio intake diagnostics."""
+    col_rows, col_files, col_quality, col_status = st.columns(4)
+    col_rows.metric("Exposure rows", snapshot.summary["input_data_records"])
+    col_files.metric("Prepared files", len(overview.manifest["generated_files"]))
+    col_quality.metric("Quality findings", len(overview.data_quality_flags))
+    col_status.metric("Validation status", overview.manifest["validation_status"])
+
+    left, right = st.columns([1.1, 1])
+    with left:
+        st.subheader("Largest prepared exposures")
+        st.dataframe(format_table(snapshot.top_assets), width="stretch", hide_index=True)
+    with right:
+        render_input_package(overview)
+
+
+def render_portfolio_analytics(snapshot, runs) -> None:
+    """Render current and projected portfolio cuts."""
+    entity_sector, projected_sector = st.tabs(["Current portfolio", "Projected sector paths"])
+    with entity_sector:
+        render_current(snapshot)
+    with projected_sector:
+        if runs.sector_projection.empty:
+            st.info("No sector projection rows were returned for the calculated model set.")
+        else:
+            st.dataframe(format_table(runs.sector_projection), width="stretch", hide_index=True)
+
+
+def render_scenario_analysis(runs, selected_model: str) -> None:
+    """Render all calculated scenario/model outputs with the selected model first."""
+    render_model_run_tabs(runs, selected_model)
+
+
+def render_model_run_tabs(runs, selected_model: str) -> None:
+    """Render model outputs from the shared run set without recalculating services."""
+    tab_names = list(STEERING_MODEL_OPTIONS)
+    if selected_model in tab_names:
+        tab_names = [selected_model, *[name for name in tab_names if name != selected_model]]
+    tabs = st.tabs(tab_names)
+    for tab, name in zip(tabs, tab_names, strict=True):
+        with tab:
+            if name == MODEL_RUNOFF:
+                render_runoff(runs.runoff)
+            elif name == MODEL_SCENARIO_FORECAST:
+                render_forecast(runs.forecast)
+            elif name == MODEL_FORECAST:
+                render_monte_carlo_forecast(runs.monte_carlo)
+            elif name == MODEL_STEERING:
+                render_steering(runs.steering)
+            elif runs.rats is None:
+                st.warning("No generated projection date is available for RATS optimization.")
+            else:
+                render_rats(runs.rats)
+
+
+def render_data_lineage(snapshot, capital, overview, runs) -> None:
+    """Render calculated lineage from source files through models to dashboard pages."""
+    lineage = lineage_frame(snapshot, capital, overview, runs)
+    st.subheader("Lineage graph")
+    st.dataframe(format_table(lineage), width="stretch", hide_index=True)
+
+    edge_chart = (
+        alt.Chart(lineage)
+        .mark_bar()
+        .encode(
+            x=alt.X("records:Q", title="Records / artifacts"),
+            y=alt.Y("target:N", title=None, sort="-x"),
+            color=alt.Color("source:N", title="Source"),
+            tooltip=["source", "target", "artifact_type", "status", "records"],
+        )
+    )
+    st.altair_chart(edge_chart, width="stretch")
+
+    st.subheader("Sector propagation")
+    sector_coverage = runs.model_summary[["model", "scenario_id", "sector_available", "status"]]
+    st.dataframe(format_table(sector_coverage), width="stretch", hide_index=True)
+
+
+def render_reports_evidence(
+    snapshot, capital, overview, runs, as_of_date: date, scenario_id: str
+) -> None:
+    """Render run evidence, calculated model inventory and prepared input package metadata."""
+    col_run, col_models, col_hashes, col_gates = st.columns(4)
+    col_run.metric("Run date", as_of_date.isoformat())
+    col_models.metric("Calculated models", runs.model_summary["model"].nunique())
+    col_hashes.metric("File hashes", len(overview.manifest.get("file_sha256", {})))
+    col_gates.metric("Quality gates", len(overview.validation_report["quality_gates"]))
+
+    contents, evidence, controls = st.tabs(["Package contents", "Run evidence", "Control mapping"])
+    with contents:
+        render_input_package(overview)
+    with evidence:
+        st.subheader("Model run evidence")
+        st.dataframe(format_table(runs.model_summary), width="stretch", hide_index=True)
+        st.subheader("Traceability")
+        st.markdown(evidence_trace_strip(snapshot, capital, overview, runs), unsafe_allow_html=True)
+    with controls:
+        control_frame = pd.DataFrame(
+            [
+                {
+                    "control": "Prepared input manifest",
+                    "evidence": "Manifest, row counts and SHA-256 hashes",
+                    "status": overview.manifest["validation_status"],
+                },
+                {
+                    "control": "Calculator-backed RWA",
+                    "evidence": (
+                        "Current, run-off, forecast and steering rows revalue through calculator"
+                    ),
+                    "status": "CALCULATED",
+                },
+                {
+                    "control": "Scenario model propagation",
+                    "evidence": (
+                        f"Scenario {scenario_id} appears in model summary and projection frames"
+                    ),
+                    "status": "CALCULATED",
+                },
+                {
+                    "control": "Capital stack",
+                    "evidence": ", ".join(capital.capital_stack["component"].tolist()),
+                    "status": "CALCULATED",
+                },
+            ]
+        )
+        st.dataframe(control_frame, width="stretch", hide_index=True)
+
+
 def render_selected_model(selected_model: str, as_of_date: date, scenario_id: str) -> None:
     """Run and render exactly one selected steering model."""
     st.subheader(selected_model)
     if selected_model == MODEL_RUNOFF:
-        projected_months = st.slider("Horyzont run-off w miesiącach", 1, 24, 24)
-        assets = st.slider("Aktywa w run-off", 10, 300, 100, 10)
-        with st.spinner("Liczenie run-off obecnego portfela..."):
+        projected_months = st.slider("Run-off horizon in months", 1, 24, 24)
+        assets = st.slider("Run-off assets", 10, 300, 100, 10)
+        with st.spinner("Calculating current portfolio run-off..."):
             runoff = cached_runoff_projection(as_of_date, projected_months, assets)
         render_runoff(runoff)
         return
 
     if selected_model == MODEL_SCENARIO_FORECAST:
-        assets = st.slider("Aktywa w scenario forecast", 3, 150, 50, 1)
-        with st.spinner("Liczenie wszystkich scenariuszy forecastu..."):
+        assets = st.slider("Scenario forecast assets", 3, 150, 50, 1)
+        with st.spinner("Calculating all forecast scenarios..."):
             forecast = cached_forecast_projection(as_of_date, assets)
         render_forecast(forecast)
         return
 
     if selected_model == MODEL_FORECAST:
-        model_type = st.selectbox("Silnik forecastu", FORECAST_ENGINE_OPTIONS)
-        horizon_months = st.slider("Horyzont forecastu w miesiącach", 1, 36, 12)
-        path_count = st.slider("Trajektorie Monte Carlo", 2, 100, 12, 1)
-        assets = st.slider("Aktywa w forecast", 3, 100, 25, 1)
-        with st.spinner("Symulacja VAR/LSTM i Monte Carlo trajectories..."):
+        model_type = st.selectbox("Forecast engine", FORECAST_ENGINE_OPTIONS)
+        horizon_months = st.slider("Forecast horizon in months", 1, 36, 12)
+        path_count = st.slider("Monte Carlo paths", 2, 100, 12, 1)
+        assets = st.slider("Forecast assets", 3, 100, 25, 1)
+        with st.spinner("Simulating VAR/LSTM and Monte Carlo trajectories..."):
             forecast = cached_monte_carlo_forecast(
                 as_of_date,
                 scenario_id,
@@ -625,9 +876,9 @@ def render_selected_model(selected_model: str, as_of_date: date, scenario_id: st
         return
 
     if selected_model == MODEL_STEERING:
-        assets = st.slider("Aktywa w steering", 3, 150, 50, 1)
-        recommendations = st.slider("Rekomendacje", 1, 25, 10, 1)
-        with st.spinner("Liczenie scenario steering, attribution i rekomendacji..."):
+        assets = st.slider("Steering assets", 3, 150, 50, 1)
+        recommendations = st.slider("Recommendations", 1, 25, 10, 1)
+        with st.spinner("Calculating scenario steering, attribution and recommendations..."):
             steering = cached_steering_simulation(
                 as_of_date,
                 scenario_id,
@@ -639,20 +890,20 @@ def render_selected_model(selected_model: str, as_of_date: date, scenario_id: st
 
     projection_dates = available_projection_dates(as_of_date)
     if not projection_dates:
-        st.error("Brak wygenerowanych dat projekcji dla wybranego as-of.")
+        st.error("No generated projection dates are available for the selected as-of date.")
         return
     projection_date = st.selectbox(
-        "Data optymalizacji",
+        "Optimization date",
         projection_dates,
         index=len(projection_dates) - 1,
         format_func=lambda value: value.isoformat(),
     )
-    assets = st.slider("Aktywa w RATS", 4, 80, 25, 1)
-    candidates = st.slider("Kandydaci UEI", 4, 50, 20, 1)
-    legs = st.slider("Maksymalna liczba legs", 1, 10, 4, 1)
+    assets = st.slider("RATS assets", 4, 80, 25, 1)
+    candidates = st.slider("UEI candidates", 4, 50, 20, 1)
+    legs = st.slider("Maximum strategy legs", 1, 10, 4, 1)
     particles = st.slider("Particles", 4, 40, 10, 1)
     iterations = st.slider("Iterations", 1, 40, 8, 1)
-    with st.spinner("Liczenie Risk-Aware Trading Swarm..."):
+    with st.spinner("Calculating Risk-Aware Trading Swarm..."):
         rats = cached_rats_optimization(
             as_of_date,
             projection_date,
@@ -673,20 +924,20 @@ def render_current(snapshot) -> None:
     density = snapshot.summary["basel_3_1_rwa_density"]
 
     col_rwa, col_exposure, col_density, col_failures = st.columns(4)
-    col_rwa.metric("Credit RWA row proxy", format_money(total_rwa))
+    col_rwa.metric("Credit RWA final", format_money(total_rwa))
     col_exposure.metric("Exposure amount", format_money(total_exposure))
     col_density.metric("RWA density", format_pct(density))
-    col_failures.metric("Błędy walidacji", snapshot.summary["output_failure_records"])
+    col_failures.metric("Validation errors", snapshot.summary["output_failure_records"])
 
     left, right = st.columns([1.15, 1])
     with left:
-        st.subheader("RWA według klasy ekspozycji")
+        st.subheader("RWA by exposure class")
         chart = (
             alt.Chart(snapshot.by_entity)
             .mark_bar()
             .encode(
-                x=alt.X("entity_class:N", title="Klasa ekspozycji"),
-                y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
+                x=alt.X("entity_class:N", title="Exposure class"),
+                y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 final RWA"),
                 color=alt.Color("entity_class:N", legend=None),
                 tooltip=[
                     "entity_class",
@@ -712,13 +963,13 @@ def render_current(snapshot) -> None:
         )
         st.altair_chart(stack, width="stretch")
 
-    st.subheader("Największe kontrybutory RWA")
+    st.subheader("Largest RWA contributors")
     st.subheader("RWA by sector")
     sector_chart = (
         alt.Chart(snapshot.by_sector)
         .mark_bar()
         .encode(
-            x=alt.X(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
+            x=alt.X(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 final RWA"),
             y=alt.Y("sector:N", title=None, sort="-x"),
             color=alt.Color("sector:N", legend=None),
             tooltip=[
@@ -808,28 +1059,28 @@ def render_regulatory_capital(capital) -> None:
 def render_runoff(projection) -> None:
     """Render closed-book run-off projection charts."""
     col_assets, col_dates, col_errors = st.columns(3)
-    col_assets.metric("Aktywa w run-off", projection.selected_asset_count)
-    col_dates.metric("Punkty czasowe", len(projection.aggregate))
-    col_errors.metric("Błędy run-off", len(projection.errors))
+    col_assets.metric("Run-off assets", projection.selected_asset_count)
+    col_dates.metric("Projection dates", len(projection.aggregate))
+    col_errors.metric("Run-off errors", len(projection.errors))
 
     line_frame = projection.aggregate.rename(columns=RWA_LABELS)
     measures = list(RWA_LABELS.values())
     long_frame = line_frame.melt(
         id_vars="projection_date",
         value_vars=measures,
-        var_name="Miara",
+        var_name="Measure",
         value_name="RWA",
     )
     chart = (
         alt.Chart(long_frame)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("RWA:Q", title="RWA"),
-            color=alt.Color("Miara:N"),
+            color=alt.Color("Measure:N"),
             tooltip=[
-                alt.Tooltip("projection_date:T", title="Data"),
-                "Miara",
+                alt.Tooltip("projection_date:T", title="Date"),
+                "Measure",
                 alt.Tooltip("RWA:Q", format=",.0f"),
             ],
         )
@@ -846,10 +1097,10 @@ def render_runoff(projection) -> None:
         alt.Chart(asset_frame)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
-            y=alt.Y("RWA:Q", title="Basel 3.1 row-level proxy RWA"),
+            x=alt.X("projection_date:T", title="Date"),
+            y=alt.Y("RWA:Q", title="Basel 3.1 final RWA"),
             tooltip=[
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 "id",
                 "entity_class",
                 "sub_class",
@@ -872,7 +1123,7 @@ def render_runoff(projection) -> None:
         .mark_line(point=True)
         .encode(
             x=alt.X("projection_date:T", title="Date"),
-            y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
+            y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 final RWA"),
             color=alt.Color("sector:N", title="Sector"),
             tooltip=[
                 alt.Tooltip("projection_date:T", title="Date"),
@@ -887,22 +1138,22 @@ def render_runoff(projection) -> None:
 def render_forecast(forecast) -> None:
     """Render scenario forecast of input variables and recalculated RWA."""
     col_assets, col_scenarios, col_dates, col_errors = st.columns(4)
-    col_assets.metric("Aktywa w forecast", forecast.selected_asset_count)
-    col_scenarios.metric("Scenariusze", len(forecast.scenarios))
-    col_dates.metric("Horyzonty forecast", len(forecast.projection_dates))
-    col_errors.metric("Błędy forecast", len(forecast.errors))
+    col_assets.metric("Forecast assets", forecast.selected_asset_count)
+    col_scenarios.metric("Scenarios", len(forecast.scenarios))
+    col_dates.metric("Forecast horizons", len(forecast.projection_dates))
+    col_errors.metric("Forecast errors", len(forecast.errors))
 
     rwa_chart = (
         alt.Chart(forecast.aggregate)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("projected_rwa:Q", title="Projected RWA"),
-            color=alt.Color("scenario_id:N", title="Scenariusz"),
+            color=alt.Color("scenario_id:N", title="Scenario"),
             tooltip=[
                 "scenario_id",
                 "forecast_stage",
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 alt.Tooltip("projected_rwa:Q", format=",.0f"),
                 alt.Tooltip("rwa_delta_pct:Q", format=".2%"),
             ],
@@ -916,12 +1167,12 @@ def render_forecast(forecast) -> None:
             alt.Chart(forecast.aggregate)
             .mark_line(point=True)
             .encode(
-                x=alt.X("projection_date:T", title="Data"),
+                x=alt.X("projection_date:T", title="Date"),
                 y=alt.Y("forecast_exposure_amount:Q", title="Forecast exposure"),
-                color=alt.Color("scenario_id:N", title="Scenariusz"),
+                color=alt.Color("scenario_id:N", title="Scenario"),
                 tooltip=[
                     "scenario_id",
-                    alt.Tooltip("projection_date:T", title="Data"),
+                    alt.Tooltip("projection_date:T", title="Date"),
                     alt.Tooltip("forecast_exposure_amount:Q", format=",.0f"),
                     alt.Tooltip("exposure_delta:Q", format=",.0f"),
                 ],
@@ -933,12 +1184,12 @@ def render_forecast(forecast) -> None:
             alt.Chart(forecast.aggregate)
             .mark_bar()
             .encode(
-                x=alt.X("projection_date:T", title="Data"),
+                x=alt.X("projection_date:T", title="Date"),
                 y=alt.Y("rating_migration_count:Q", title="Rating migrations"),
-                color=alt.Color("scenario_id:N", title="Scenariusz"),
+                color=alt.Color("scenario_id:N", title="Scenario"),
                 tooltip=[
                     "scenario_id",
-                    alt.Tooltip("projection_date:T", title="Data"),
+                    alt.Tooltip("projection_date:T", title="Date"),
                     "rating_migration_count",
                     "matured_asset_count",
                 ],
@@ -948,7 +1199,7 @@ def render_forecast(forecast) -> None:
 
     latest_date = forecast.aggregate["projection_date"].max()
     latest = forecast.aggregate[forecast.aggregate["projection_date"] == latest_date]
-    st.subheader(f"Forecast drivers na {pd.Timestamp(latest_date).date().isoformat()}")
+    st.subheader(f"Forecast drivers at {pd.Timestamp(latest_date).date().isoformat()}")
     st.dataframe(format_table(latest), width="stretch", hide_index=True)
 
     scenario_id = st.selectbox("Forecast scenario", forecast.scenarios)
@@ -966,6 +1217,7 @@ def render_forecast(forecast) -> None:
         "id",
         "entity_class",
         "sub_class",
+        "sector",
         "current_exposure_amount",
         "forecast_exposure_amount",
         "exposure_delta",
@@ -987,30 +1239,30 @@ def render_monte_carlo_forecast(forecast) -> None:
     """Render VAR/LSTM Monte Carlo forecast paths and selected trajectory."""
     summary = forecast.summary
     col_assets, col_paths, col_selected, col_breach = st.columns(4)
-    col_assets.metric("Aktywa w forecast", forecast.selected_asset_count)
-    col_paths.metric("Trajektorie", int(summary["path_count"]))
-    col_selected.metric("Wybrana ścieżka", int(summary["selected_path_id"]))
+    col_assets.metric("Forecast assets", forecast.selected_asset_count)
+    col_paths.metric("Paths", int(summary["path_count"]))
+    col_selected.metric("Selected path", int(summary["selected_path_id"]))
     col_breach.metric("P(breach)", format_pct(summary["breach_probability"]))
 
     col_rwa, col_profit, col_status = st.columns(3)
     col_rwa.metric("Selected terminal RWA", format_money(summary["selected_terminal_rwa"]))
     col_profit.metric("Selected profit", format_money(summary["selected_cumulative_profit"]))
-    col_status.metric("Status inputów", forecast.package_status or "unknown")
+    col_status.metric("Input status", forecast.package_status or "unknown")
 
     if forecast.portfolio_paths.empty:
-        st.warning("Forecast nie zwrócił ścieżek portfela.")
+        st.warning("Forecast returned no portfolio paths.")
         return
 
     path_chart = (
         alt.Chart(forecast.portfolio_paths)
         .mark_line(point=False, opacity=0.45)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("rwa:Q", title="RWA"),
-            color=alt.Color("path_id:N", title="Ścieżka"),
+            color=alt.Color("path_id:N", title="Path"),
             tooltip=[
                 "path_id",
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 alt.Tooltip("rwa:Q", format=",.0f"),
                 alt.Tooltip("capital_ratio:Q", format=".2%"),
             ],
@@ -1020,10 +1272,10 @@ def render_monte_carlo_forecast(forecast) -> None:
         alt.Chart(forecast.selected_path)
         .mark_line(point=True, strokeWidth=4)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("rwa:Q", title="RWA"),
             tooltip=[
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 alt.Tooltip("rwa:Q", format=",.0f"),
                 alt.Tooltip("cumulative_profit:Q", format=",.0f"),
                 alt.Tooltip("turnover_amount:Q", format=",.0f"),
@@ -1031,8 +1283,31 @@ def render_monte_carlo_forecast(forecast) -> None:
         )
     )
     st.altair_chart(path_chart + selected_chart, width="stretch")
-
     selected_path_id = int(summary["selected_path_id"])
+
+    if not forecast.sector_paths.empty:
+        selected_sector_paths = forecast.sector_paths[
+            forecast.sector_paths["path_id"] == selected_path_id
+        ]
+        sector_chart = (
+            alt.Chart(selected_sector_paths)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("projection_date:T", title="Projection date"),
+                y=alt.Y("rwa:Q", title="RWA"),
+                color=alt.Color("sector:N", title="Sector"),
+                tooltip=[
+                    "sector",
+                    "asset_count",
+                    alt.Tooltip("projection_date:T", title="Projection date"),
+                    alt.Tooltip("rwa:Q", format=",.0f"),
+                    alt.Tooltip("exposure_amount:Q", format=",.0f"),
+                ],
+            )
+        )
+        st.subheader("Selected path by sector")
+        st.altair_chart(sector_chart, width="stretch")
+
     selected_market = forecast.market_paths[forecast.market_paths["path_id"] == selected_path_id]
     factor_columns = [
         "volatility_index",
@@ -1050,12 +1325,12 @@ def render_monte_carlo_forecast(forecast) -> None:
         alt.Chart(factors)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
-            y=alt.Y("Value:Q", title="Wartość"),
+            x=alt.X("projection_date:T", title="Date"),
+            y=alt.Y("Value:Q", title="Value"),
             color=alt.Color("Factor:N"),
             tooltip=[
                 "Factor",
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 alt.Tooltip("Value:Q", format=",.4f"),
             ],
         )
@@ -1079,8 +1354,8 @@ def render_rats(rats) -> None:
     """Render Risk-Aware Trading Swarm optimization output."""
     summary = rats.summary
     col_assets, col_status, col_feasible, col_legs = st.columns(4)
-    col_assets.metric("Aktywa w RATS", rats.selected_asset_count)
-    col_status.metric("Status inputów", rats.package_status or "unknown")
+    col_assets.metric("RATS assets", rats.selected_asset_count)
+    col_status.metric("Input status", rats.package_status or "unknown")
     col_feasible.metric("Feasible", "yes" if summary["feasible"] else "no")
     col_legs.metric("Selected legs", int(summary["selected_legs"]))
 
@@ -1154,22 +1429,22 @@ def render_steering(steering) -> None:
         else 0.0
     )
     col_assets, col_dates, col_status, col_saving = st.columns(4)
-    col_assets.metric("Aktywa w optymalizacji", steering.selected_asset_count)
-    col_dates.metric("Horyzonty", len(steering.projection_dates))
-    col_status.metric("Status inputów", steering.package_status or "unknown")
+    col_assets.metric("Optimization assets", steering.selected_asset_count)
+    col_dates.metric("Projection dates", len(steering.projection_dates))
+    col_status.metric("Input status", steering.package_status or "unknown")
     col_saving.metric("Estimated RWA saving", format_money(total_saving))
 
     scenario_chart = (
         alt.Chart(steering.summaries)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("projected_rwa:Q", title="Projected RWA"),
-            color=alt.Color("scenario_id:N", title="Scenariusz"),
+            color=alt.Color("scenario_id:N", title="Scenario"),
             tooltip=[
                 "scenario_id",
                 "regime_label",
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 alt.Tooltip("projected_rwa:Q", format=",.0f"),
                 alt.Tooltip("rwa_delta_pct:Q", format=".2%"),
             ],
@@ -1200,17 +1475,17 @@ def render_steering(steering) -> None:
         .encode(
             x=alt.X("Driver:N", title=None),
             y=alt.Y("RWA delta:Q", title="RWA delta"),
-            color=alt.Color("scenario_id:N", title="Scenariusz"),
+            color=alt.Color("scenario_id:N", title="Scenario"),
             column=alt.Column("scenario_id:N", title=None),
             tooltip=["scenario_id", "Driver", alt.Tooltip("RWA delta:Q", format=",.0f")],
         )
     )
-    st.subheader(f"Atrybucja na {pd.Timestamp(latest_date).date().isoformat()}")
+    st.subheader(f"Attribution at {pd.Timestamp(latest_date).date().isoformat()}")
     st.altair_chart(attribution_chart, width="stretch")
 
-    st.subheader("Rekomendowane działania")
+    st.subheader("Recommended actions")
     if steering.recommendations.empty:
-        st.info("Brak rekomendacji dla wybranego portfela i scenariuszy.")
+        st.info("No recommendations were returned for the selected portfolio and scenarios.")
         return
 
     product_savings = (
@@ -1237,7 +1512,7 @@ def render_steering(steering) -> None:
     st.dataframe(format_table(steering.recommendations), width="stretch", hide_index=True)
 
 
-def render_agent_briefing(snapshot, capital, overview, as_of_date: date) -> None:
+def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -> None:
     """Render the agent-ready management briefing workspace from calculated data."""
     output_floor = capital.output_floor
     leverage = capital.leverage_ratio
@@ -1257,8 +1532,8 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date) -> None
             <p>
                 Agent-ready workspace for reporting date {as_of_date.isoformat()}.
                 The visible figures are calculated from the prepared input package and
-                current calculator outputs; agent narrative output is intentionally empty
-                until the agent services are added.
+                the complete model run set. Future agents can consume these same frames
+                without recalculating or substituting fallback data.
             </p>
         </div>
         """,
@@ -1274,21 +1549,22 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date) -> None
 
     left, right = st.columns([1.08, 1])
     with left:
-        st.subheader("RWA movement attribution inputs")
-        entity_frame = snapshot.by_entity.sort_values(RWA_FINAL_FIELD, ascending=False).copy()
+        st.subheader("Model movement attribution")
+        entity_frame = runs.model_summary.sort_values("projected_rwa", ascending=False).copy()
         entity_chart = (
             alt.Chart(entity_frame)
             .mark_bar()
             .encode(
-                x=alt.X(f"{RWA_FINAL_FIELD}:Q", title="RWA"),
-                y=alt.Y("entity_class:N", title=None, sort="-x"),
-                color=alt.Color("entity_class:N", legend=None),
+                x=alt.X("rwa_delta:Q", title="RWA delta"),
+                y=alt.Y("model:N", title=None, sort="-x"),
+                color=alt.Color("scenario_id:N", title="Scenario"),
                 tooltip=[
-                    "entity_class",
-                    "asset_count",
-                    alt.Tooltip("exposure_amount:Q", format=",.0f"),
-                    alt.Tooltip(f"{RWA_FINAL_FIELD}:Q", format=",.0f"),
-                    alt.Tooltip("rwa_density:Q", format=".2%"),
+                    "model",
+                    "scenario_id",
+                    alt.Tooltip("projection_date:T", title="Projection date"),
+                    alt.Tooltip("baseline_rwa:Q", format=",.0f"),
+                    alt.Tooltip("projected_rwa:Q", format=",.0f"),
+                    alt.Tooltip("rwa_delta:Q", format=",.0f"),
                 ],
             )
         )
@@ -1297,7 +1573,7 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date) -> None
 
     with right:
         st.subheader("Agent workspace")
-        st.markdown(agent_slot_cards(snapshot, capital, overview), unsafe_allow_html=True)
+        st.markdown(agent_slot_cards(snapshot, capital, overview, runs), unsafe_allow_html=True)
         st.subheader("Capital briefing context")
         st.dataframe(format_table(capital.capital_stack), width="stretch", hide_index=True)
 
@@ -1306,31 +1582,32 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date) -> None
         st.subheader("Data quality findings")
         st.dataframe(format_table(quality_summary), width="stretch", hide_index=True)
     with lower_right:
-        st.subheader("Agent output panel")
+        st.subheader("Board commentary input panel")
         cet1_ratio_text = format_pct(output_floor["cet1_ratio"])
         leverage_ratio_text = format_pct(leverage["leverage_ratio"])
         st.markdown(
             f"""
             <div class="briefing-card">
                 <h4>Board Commentary Agent</h4>
-                <p>Status: reserved for the next implementation step.</p>
+                <p>Status: input-ready for the next implementation step.</p>
                 <p>Current inputs available: CET1 {cet1_ratio_text},
                 leverage {leverage_ratio_text},
                 {len(capital.capital_stack)} capital-stack components,
-                {quality_issues} data-quality findings.</p>
-                <span class="agent-status reserved">No generated commentary persisted</span>
+                {quality_issues} data-quality findings and
+                {runs.model_summary["model"].nunique()} calculated model outputs.</p>
+                <span class="agent-status">Input contract ready</span>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
     st.subheader("Evidence & traceability")
-    st.markdown(evidence_trace_strip(snapshot, capital, overview), unsafe_allow_html=True)
+    st.markdown(evidence_trace_strip(snapshot, capital, overview, runs), unsafe_allow_html=True)
     for note in capital.methodology_notes:
         st.caption(note)
 
 
-def agent_slot_cards(snapshot, capital, overview) -> str:
+def agent_slot_cards(snapshot, capital, overview, runs) -> str:
     """Return HTML cards for the future agent registry slots."""
     validation_status = overview.manifest["validation_status"]
     hash_count = len(overview.manifest.get("file_sha256", {}))
@@ -1340,8 +1617,8 @@ def agent_slot_cards(snapshot, capital, overview) -> str:
         {
             "name": AGENT_SLOT_NAMES[0],
             "body": (
-                f"{snapshot.summary['input_data_records']} exposure rows, "
-                f"{len(snapshot.by_entity)} exposure-class cuts and top RWA contributors."
+                f"{runs.model_summary['model'].nunique()} calculated model outputs, "
+                f"{len(runs.projection_comparison)} projection points and movement deltas."
             ),
             "status": "Slot ready",
             "class": "",
@@ -1371,9 +1648,12 @@ def agent_slot_cards(snapshot, capital, overview) -> str:
         },
         {
             "name": AGENT_SLOT_NAMES[4],
-            "body": "Reserved output surface for generated management commentary.",
-            "status": "Reserved",
-            "class": " reserved",
+            "body": (
+                f"Board commentary input contract includes {len(capital.capital_stack)} "
+                f"capital components and {len(runs.sector_projection)} sector rows."
+            ),
+            "status": "Input ready",
+            "class": "",
         },
     ]
     cards = [
@@ -1389,7 +1669,66 @@ def agent_slot_cards(snapshot, capital, overview) -> str:
     return f'<div class="agent-grid">{"".join(cards)}</div>'
 
 
-def evidence_trace_strip(snapshot, capital, overview) -> str:
+def lineage_frame(snapshot, capital, overview, runs) -> pd.DataFrame:
+    """Build a page-ready lineage table from calculated objects and package metadata."""
+    generated_files = len(overview.manifest["generated_files"])
+    hashes = len(overview.manifest.get("file_sha256", {}))
+    return pd.DataFrame(
+        [
+            {
+                "source": "Prepared exposure file",
+                "target": "RWA calculator",
+                "artifact_type": "CSV input",
+                "records": int(snapshot.summary["input_data_records"]),
+                "status": "CALCULATED",
+            },
+            {
+                "source": "Generated input package",
+                "target": "Forecast, steering and optimizer services",
+                "artifact_type": "Generated CSV package",
+                "records": generated_files,
+                "status": overview.manifest["validation_status"],
+            },
+            {
+                "source": "RWA calculator",
+                "target": "Current dashboard",
+                "artifact_type": "Calculator output rows",
+                "records": int(snapshot.results.shape[0]),
+                "status": "CALCULATED",
+            },
+            {
+                "source": "Model run set",
+                "target": "Scenario analysis",
+                "artifact_type": "Projection frame",
+                "records": int(runs.projection_comparison.shape[0]),
+                "status": "CALCULATED",
+            },
+            {
+                "source": "Model run set",
+                "target": "Sector projection dashboard",
+                "artifact_type": "Sector projection frame",
+                "records": int(runs.sector_projection.shape[0]),
+                "status": "CALCULATED",
+            },
+            {
+                "source": "Capital generated inputs",
+                "target": "Regulatory capital stack",
+                "artifact_type": "Capital module output",
+                "records": int(capital.capital_stack.shape[0]),
+                "status": "CALCULATED",
+            },
+            {
+                "source": "Manifest hashes",
+                "target": "Reports & Evidence",
+                "artifact_type": "SHA-256 evidence",
+                "records": hashes,
+                "status": overview.manifest["validation_status"],
+            },
+        ]
+    )
+
+
+def evidence_trace_strip(snapshot, capital, overview, runs) -> str:
     """Return concept-style traceability cards for the briefing footer."""
     file_hashes = overview.manifest.get("file_sha256", {})
     generated_files = len(overview.manifest["generated_files"])
@@ -1410,6 +1749,13 @@ def evidence_trace_strip(snapshot, capital, overview) -> str:
             "body": ", ".join(capital.capital_stack["component"].tolist()),
         },
         {
+            "title": "Model outputs",
+            "body": (
+                f"{runs.model_summary['model'].nunique()} models, "
+                f"{len(runs.projection_comparison)} projection rows"
+            ),
+        },
+        {
             "title": "Validation gates",
             "body": f"{quality_gates} gates, {validation_status}",
         },
@@ -1424,14 +1770,14 @@ def evidence_trace_strip(snapshot, capital, overview) -> str:
 def render_input_package(overview) -> None:
     """Render generated-input manifest and data-quality diagnostics."""
     col_version, col_status, col_seed, col_files = st.columns(4)
-    col_version.metric("Wersja", overview.manifest["version_id"])
-    col_status.metric("Walidacja", overview.manifest["validation_status"])
+    col_version.metric("Version", display_version(overview.manifest["version_id"]))
+    col_status.metric("Validation", overview.manifest["validation_status"])
     col_seed.metric("Seed", overview.manifest["random_seed"])
-    col_files.metric("Pliki", len(overview.manifest["generated_files"]))
+    col_files.metric("Files", len(overview.manifest["generated_files"]))
 
     left, right = st.columns([1, 1])
     with left:
-        st.subheader("Wygenerowane pliki")
+        st.subheader("Generated files")
         st.dataframe(overview.row_counts, width="stretch", hide_index=True)
     with right:
         st.subheader("Quality flags")
@@ -1462,6 +1808,13 @@ def format_table(frame: pd.DataFrame) -> pd.DataFrame:
     for column in display.select_dtypes(include=["float", "float64"]).columns:
         display[column] = display[column].round(4)
     return display
+
+
+def display_version(value: str | None) -> str:
+    """Return an enterprise-safe version label for UI surfaces."""
+    if not value:
+        return "n/a"
+    return str(value)
 
 
 if __name__ == "__main__":

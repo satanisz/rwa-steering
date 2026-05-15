@@ -32,14 +32,14 @@ from rwa_projection_service.engine import RwaProjectionService
 from rwa_projection_service.schemas import ProjectionRequest
 from rwa_rats_service.engine import RwaRATSService
 from rwa_rats_service.schemas import RATSConstraints, RATSRequest, SwarmSettings
-from rwa_steering.engine import RwaSteeringPocService
+from rwa_steering.engine import RwaSteeringService
 from rwa_steering.input_package import SteeringInputPackage, load_steering_input_package
 from rwa_steering.schemas import SteeringRequest
 
 RWA_FINAL_FIELD = "basel_3_1_rwa_final"
 RWA_FOUNDATION_FIELD = "basel_3_1_rwa_foundation"
 RWA_STANDARDISED_FIELD = "basel_3_1_rwa_standardised"
-CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
+CAPITAL_PORTFOLIO_ID = "BANKING_BOOK"
 RWA_FIELDS = (
     "basel_3_0_rwa",
     RWA_FOUNDATION_FIELD,
@@ -146,6 +146,7 @@ class MonteCarloForecastDashboardData:
     summary: dict[str, Any]
     market_paths: pd.DataFrame
     portfolio_paths: pd.DataFrame
+    sector_paths: pd.DataFrame
     path_scores: pd.DataFrame
     selected_path: pd.DataFrame
     limitations: list[str]
@@ -193,6 +194,28 @@ class InputPackageOverview:
     row_counts: pd.DataFrame
     data_quality_flags: pd.DataFrame
     data_quality_summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class ModelRunSet:
+    """Calculated outputs for every dashboard model surface.
+
+    The application uses this object as the single model-output contract across the dashboard,
+    scenario page, intelligence briefing and evidence views. Every frame is produced by a
+    service call over prepared inputs; no row is assembled from inline mock values.
+    """
+
+    as_of_date: date
+    scenario_id: str
+    rats_projection_date: date | None
+    runoff: RunoffProjectionDashboardData
+    forecast: ForecastProjectionDashboardData
+    monte_carlo: MonteCarloForecastDashboardData
+    steering: SteeringDashboardData
+    rats: RATSDashboardData | None
+    model_summary: pd.DataFrame
+    projection_comparison: pd.DataFrame
+    sector_projection: pd.DataFrame
 
 
 def default_as_of_date() -> date:
@@ -401,7 +424,7 @@ def steering_simulation(
         source_rows,
         top_n_assets,
     )
-    response = RwaSteeringPocService(input_package=package).run(
+    response = RwaSteeringService(input_package=package).run(
         SteeringRequest(
             as_of_date=as_of_date,
             projection_dates=projection_dates,
@@ -465,6 +488,7 @@ def monte_carlo_forecast(
         summary=_model_dict(response.summary),
         market_paths=_models_frame(response.market_paths),
         portfolio_paths=_models_frame(response.portfolio_paths),
+        sector_paths=_models_frame(response.sector_paths),
         path_scores=_models_frame(response.path_scores),
         selected_path=_models_frame(response.selected_path),
         limitations=response.limitations,
@@ -664,6 +688,88 @@ def regulatory_capital_snapshot(
             ),
             "Prepared capital inputs are hash-validated by the generated input manifest.",
         ],
+    )
+
+
+def model_run_set(
+    as_of_date: date,
+    scenario_id: str = "STRESS",
+    *,
+    scenarios: tuple[str, ...] = ("BASE", "DOWNSIDE", "STRESS", "RECOVERY"),
+    runoff_months: int = 24,
+    runoff_assets: int = 100,
+    forecast_assets: int = 50,
+    monte_carlo_horizon_months: int = 12,
+    monte_carlo_paths: int = 12,
+    monte_carlo_assets: int = 25,
+    steering_assets: int = 50,
+    steering_recommendations: int = 10,
+    rats_assets: int = 25,
+    rats_candidates: int = 20,
+    rats_legs: int = 4,
+    rats_particles: int = 10,
+    rats_iterations: int = 8,
+) -> ModelRunSet:
+    """Run every model needed by the enterprise dashboard from prepared inputs."""
+    projection_dates = available_projection_dates(as_of_date)
+    rats_projection_date = projection_dates[0] if projection_dates else None
+    selected_scenario = scenario_id if scenario_id in scenarios else scenarios[0]
+
+    runoff = runoff_projection(
+        as_of_date=as_of_date,
+        projected_months=runoff_months,
+        top_n_assets=runoff_assets,
+    )
+    forecast = forecast_projection(
+        as_of_date=as_of_date,
+        scenarios=list(scenarios),
+        top_n_assets=forecast_assets,
+    )
+    monte_carlo = monte_carlo_forecast(
+        as_of_date=as_of_date,
+        scenario_id=selected_scenario,
+        model_type="VAR",
+        horizon_months=monte_carlo_horizon_months,
+        path_count=monte_carlo_paths,
+        top_n_assets=monte_carlo_assets,
+    )
+    steering = steering_simulation(
+        as_of_date=as_of_date,
+        scenarios=[selected_scenario],
+        top_n_assets=steering_assets,
+        top_n_recommendations=steering_recommendations,
+    )
+    rats = (
+        rats_optimization(
+            as_of_date=as_of_date,
+            projection_date=rats_projection_date,
+            scenario_id=selected_scenario,
+            top_n_assets=rats_assets,
+            top_n_candidates=rats_candidates,
+            max_strategy_legs=rats_legs,
+            particles=rats_particles,
+            iterations=rats_iterations,
+        )
+        if rats_projection_date is not None
+        else None
+    )
+
+    return ModelRunSet(
+        as_of_date=as_of_date,
+        scenario_id=selected_scenario,
+        rats_projection_date=rats_projection_date,
+        runoff=runoff,
+        forecast=forecast,
+        monte_carlo=monte_carlo,
+        steering=steering,
+        rats=rats,
+        model_summary=_model_run_summary_frame(runoff, forecast, monte_carlo, steering, rats),
+        projection_comparison=_model_projection_frame(
+            runoff, forecast, monte_carlo, steering, rats
+        ),
+        sector_projection=_model_sector_projection_frame(
+            runoff, forecast, monte_carlo, steering, rats
+        ),
     )
 
 
@@ -947,6 +1053,268 @@ def _forecast_aggregate_row(
         "matured_asset_count": int(details["matured_asset"].sum()) if not details.empty else 0,
         "asset_count": len(details),
     }
+
+
+def _model_run_summary_frame(
+    runoff: RunoffProjectionDashboardData,
+    forecast: ForecastProjectionDashboardData,
+    monte_carlo: MonteCarloForecastDashboardData,
+    steering: SteeringDashboardData,
+    rats: RATSDashboardData | None,
+) -> pd.DataFrame:
+    """Build one comparable model summary row per calculated model."""
+    rows: list[dict[str, Any]] = []
+
+    if not runoff.aggregate.empty:
+        ordered = runoff.aggregate.sort_values("projection_date")
+        baseline = float(ordered.iloc[0][RWA_FINAL_FIELD])
+        terminal = ordered.iloc[-1]
+        rows.append(
+            _model_summary_row(
+                model="Run-off f(x,t)",
+                scenario_id="RUNOFF",
+                projection_date=terminal["projection_date"],
+                baseline_rwa=baseline,
+                projected_rwa=float(terminal[RWA_FINAL_FIELD]),
+                selected_asset_count=runoff.selected_asset_count,
+                status="CALCULATED",
+                sector_available="yes",
+            )
+        )
+
+    forecast_rows = forecast.aggregate[forecast.aggregate["forecast_stage"] == "Forecast"]
+    if not forecast_rows.empty:
+        for scenario_id, scenario_frame in forecast_rows.groupby("scenario_id", dropna=False):
+            terminal = scenario_frame.sort_values("projection_date").iloc[-1]
+            rows.append(
+                _model_summary_row(
+                    model="Forecast scenarios",
+                    scenario_id=str(scenario_id),
+                    projection_date=terminal["projection_date"],
+                    baseline_rwa=float(terminal["current_rwa"]),
+                    projected_rwa=float(terminal["projected_rwa"]),
+                    selected_asset_count=forecast.selected_asset_count,
+                    status="CALCULATED",
+                    sector_available="yes",
+                )
+            )
+
+    if not monte_carlo.selected_path.empty:
+        terminal = monte_carlo.selected_path.sort_values("projection_date").iloc[-1]
+        baseline = monte_carlo.selected_path.sort_values("projection_date").iloc[0]
+        rows.append(
+            _model_summary_row(
+                model=f"Forecast Monte Carlo ({monte_carlo.model_type})",
+                scenario_id=monte_carlo.scenario_id,
+                projection_date=terminal["projection_date"],
+                baseline_rwa=float(baseline["rwa"]),
+                projected_rwa=float(terminal["rwa"]),
+                selected_asset_count=monte_carlo.selected_asset_count,
+                status="CALCULATED",
+                sector_available="yes",
+            )
+        )
+
+    if not steering.summaries.empty:
+        terminal = steering.summaries.sort_values("projection_date").iloc[-1]
+        rows.append(
+            _model_summary_row(
+                model="Scenario steering",
+                scenario_id=str(terminal["scenario_id"]),
+                projection_date=terminal["projection_date"],
+                baseline_rwa=float(terminal["current_rwa"]),
+                projected_rwa=float(terminal["projected_rwa"]),
+                selected_asset_count=steering.selected_asset_count,
+                status="CALCULATED",
+                sector_available="yes",
+            )
+        )
+
+    if rats is not None:
+        rows.append(
+            _model_summary_row(
+                model="RATS optimizer",
+                scenario_id=rats.scenario_id,
+                projection_date=rats.projection_date,
+                baseline_rwa=float(rats.summary["projected_rwa_before_strategy"]),
+                projected_rwa=float(rats.summary["optimized_projected_rwa"]),
+                selected_asset_count=rats.selected_asset_count,
+                status="CALCULATED",
+                sector_available="yes",
+            )
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _model_summary_row(
+    *,
+    model: str,
+    scenario_id: str,
+    projection_date: Any,
+    baseline_rwa: float,
+    projected_rwa: float,
+    selected_asset_count: int,
+    status: str,
+    sector_available: str,
+) -> dict[str, Any]:
+    delta = projected_rwa - baseline_rwa
+    return {
+        "model": model,
+        "scenario_id": scenario_id,
+        "projection_date": pd.to_datetime(projection_date),
+        "baseline_rwa": baseline_rwa,
+        "projected_rwa": projected_rwa,
+        "rwa_delta": delta,
+        "rwa_delta_pct": delta / baseline_rwa if baseline_rwa else None,
+        "selected_asset_count": selected_asset_count,
+        "status": status,
+        "sector_available": sector_available,
+    }
+
+
+def _model_projection_frame(
+    runoff: RunoffProjectionDashboardData,
+    forecast: ForecastProjectionDashboardData,
+    monte_carlo: MonteCarloForecastDashboardData,
+    steering: SteeringDashboardData,
+    rats: RATSDashboardData | None,
+) -> pd.DataFrame:
+    """Normalize projection trajectories across models for shared dashboard charts."""
+    frames: list[pd.DataFrame] = []
+
+    if not runoff.aggregate.empty:
+        frame = runoff.aggregate[["projection_date", RWA_FINAL_FIELD]].copy()
+        frame["model"] = "Run-off f(x,t)"
+        frame["scenario_id"] = "RUNOFF"
+        frame["stage"] = "Projected portfolio"
+        frame = frame.rename(columns={RWA_FINAL_FIELD: "projected_rwa"})
+        frames.append(frame)
+
+    forecast_frame = forecast.aggregate[forecast.aggregate["forecast_stage"] == "Forecast"]
+    if not forecast_frame.empty:
+        frame = forecast_frame[
+            ["projection_date", "scenario_id", "projected_rwa", "forecast_stage"]
+        ].copy()
+        frame["model"] = "Forecast scenarios"
+        frame["stage"] = frame["forecast_stage"]
+        frame = frame.drop(columns=["forecast_stage"])
+        frames.append(frame)
+
+    if not monte_carlo.selected_path.empty:
+        frame = monte_carlo.selected_path[["projection_date", "rwa"]].copy()
+        frame["model"] = f"Forecast Monte Carlo ({monte_carlo.model_type})"
+        frame["scenario_id"] = monte_carlo.scenario_id
+        frame["stage"] = "Selected path"
+        frame = frame.rename(columns={"rwa": "projected_rwa"})
+        frames.append(frame)
+
+    if not steering.summaries.empty:
+        frame = steering.summaries[["projection_date", "scenario_id", "projected_rwa"]].copy()
+        frame["model"] = "Scenario steering"
+        frame["stage"] = "Projected portfolio"
+        frames.append(frame)
+
+    if rats is not None:
+        frames.append(
+            pd.DataFrame(
+                [
+                    {
+                        "projection_date": pd.to_datetime(rats.projection_date),
+                        "scenario_id": rats.scenario_id,
+                        "projected_rwa": rats.summary["optimized_projected_rwa"],
+                        "model": "RATS optimizer",
+                        "stage": "Optimized projected RWA",
+                    }
+                ]
+            )
+        )
+
+    if not frames:
+        return pd.DataFrame(
+            columns=["projection_date", "projected_rwa", "model", "scenario_id", "stage"]
+        )
+    return pd.concat(frames, ignore_index=True).sort_values(["model", "projection_date"])
+
+
+def _model_sector_projection_frame(
+    runoff: RunoffProjectionDashboardData,
+    forecast: ForecastProjectionDashboardData,
+    monte_carlo: MonteCarloForecastDashboardData,
+    steering: SteeringDashboardData,
+    rats: RATSDashboardData | None,
+) -> pd.DataFrame:
+    """Normalize sector-level projections from every model that exposes sector outputs."""
+    frames: list[pd.DataFrame] = []
+
+    if not runoff.details.empty and "sector" in runoff.details.columns:
+        frame = (
+            runoff.details.groupby(["projection_date", "sector"], dropna=False)
+            .agg(projected_rwa=(RWA_FINAL_FIELD, "sum"), asset_count=("id", "count"))
+            .reset_index()
+        )
+        frame["model"] = "Run-off f(x,t)"
+        frame["scenario_id"] = "RUNOFF"
+        frame["stage"] = "Projected portfolio"
+        frames.append(frame)
+
+    forecast_details = forecast.details[forecast.details["forecast_stage"] == "Forecast"]
+    if not forecast_details.empty and "sector" in forecast_details.columns:
+        frame = (
+            forecast_details.groupby(["projection_date", "scenario_id", "sector"], dropna=False)
+            .agg(projected_rwa=("projected_rwa", "sum"), asset_count=("id", "count"))
+            .reset_index()
+        )
+        frame["model"] = "Forecast scenarios"
+        frame["stage"] = "Projected portfolio"
+        frames.append(frame)
+
+    if not monte_carlo.sector_paths.empty:
+        selected_path_id = int(monte_carlo.summary["selected_path_id"])
+        frame = monte_carlo.sector_paths[monte_carlo.sector_paths["path_id"] == selected_path_id][
+            ["projection_date", "sector", "asset_count", "rwa"]
+        ].copy()
+        frame["model"] = f"Forecast Monte Carlo ({monte_carlo.model_type})"
+        frame["scenario_id"] = monte_carlo.scenario_id
+        frame["stage"] = "Selected path"
+        frame = frame.rename(columns={"rwa": "projected_rwa"})
+        frames.append(frame)
+
+    if not steering.projections.empty and "sector" in steering.projections.columns:
+        frame = (
+            steering.projections.groupby(["projection_date", "scenario_id", "sector"], dropna=False)
+            .agg(projected_rwa=("projected_rwa", "sum"), asset_count=("id", "count"))
+            .reset_index()
+        )
+        frame["model"] = "Scenario steering"
+        frame["stage"] = "Projected portfolio"
+        frames.append(frame)
+
+    if rats is not None and not rats.candidates.empty and "sector" in rats.candidates.columns:
+        frame = (
+            rats.candidates.groupby(["sector"], dropna=False)
+            .agg(projected_rwa=("projected_rwa", "sum"), asset_count=("asset_id", "count"))
+            .reset_index()
+        )
+        frame["projection_date"] = pd.to_datetime(rats.projection_date)
+        frame["model"] = "RATS optimizer"
+        frame["scenario_id"] = rats.scenario_id
+        frame["stage"] = "Eligible instruments"
+        frames.append(frame)
+
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "projection_date",
+                "sector",
+                "projected_rwa",
+                "asset_count",
+                "model",
+                "scenario_id",
+                "stage",
+            ]
+        )
+    return pd.concat(frames, ignore_index=True).sort_values(["model", "projection_date", "sector"])
 
 
 def _models_frame(models: list[Any]) -> pd.DataFrame:

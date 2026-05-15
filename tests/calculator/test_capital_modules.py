@@ -25,7 +25,7 @@ from rwa_calculator.rwa_calculator.capital_models import (
 from rwa_calculator.rwa_calculator.fastapi_app import create_app
 from rwa_steering.input_package import load_steering_input_package
 
-CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
+CAPITAL_PORTFOLIO_ID = "BANKING_BOOK"
 
 
 def test_output_floor_uses_aggregate_pdf_example_and_phase_in() -> None:

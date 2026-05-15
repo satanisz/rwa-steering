@@ -8,6 +8,7 @@ from rwa_dashboard.data import (
     current_rwa_snapshot,
     forecast_projection,
     input_package_overview,
+    model_run_set,
     monte_carlo_forecast,
     rats_optimization,
     regulatory_capital_snapshot,
@@ -84,6 +85,8 @@ def test_monte_carlo_forecast_dashboard_data_exposes_selected_path() -> None:
     assert forecast.summary["selected_path_id"] in {0, 1}
     assert len(forecast.selected_path) == 3
     assert forecast.portfolio_paths["rwa"].ge(0).all()
+    assert not forecast.sector_paths.empty
+    assert "sector" in forecast.sector_paths.columns
     assert forecast.package_status == "PASSED"
 
 
@@ -103,7 +106,39 @@ def test_rats_dashboard_data_exposes_strategy_and_convergence() -> None:
     assert rats.summary["projected_rwa_before_strategy"] >= rats.summary["optimized_projected_rwa"]
     assert rats.summary["selected_legs"] <= 2
     assert not rats.convergence.empty
+    assert "sector" in rats.candidates.columns
     assert rats.package_status == "PASSED"
+
+
+def test_model_run_set_propagates_each_model_to_dashboard_frames() -> None:
+    runs = model_run_set(
+        as_of_date=date(2026, 5, 15),
+        scenario_id="BASE",
+        runoff_months=2,
+        runoff_assets=3,
+        forecast_assets=3,
+        monte_carlo_horizon_months=2,
+        monte_carlo_paths=2,
+        monte_carlo_assets=3,
+        steering_assets=3,
+        steering_recommendations=2,
+        rats_assets=4,
+        rats_candidates=6,
+        rats_legs=2,
+        rats_particles=4,
+        rats_iterations=3,
+    )
+
+    assert set(runs.model_summary["model"]) >= {
+        "Run-off f(x,t)",
+        "Forecast scenarios",
+        "Forecast Monte Carlo (VAR)",
+        "Scenario steering",
+        "RATS optimizer",
+    }
+    assert not runs.projection_comparison.empty
+    assert not runs.sector_projection.empty
+    assert runs.model_summary["sector_available"].eq("yes").all()
 
 
 def test_regulatory_capital_dashboard_data_exposes_final_reform_modules() -> None:

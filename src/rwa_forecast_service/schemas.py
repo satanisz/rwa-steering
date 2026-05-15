@@ -119,6 +119,18 @@ class PortfolioPathStep(ForecastModel):
     rwa_breach: bool
 
 
+class SectorPathStep(ForecastModel):
+    """Sector-level RWA and exposure metrics for one Monte Carlo path step."""
+
+    path_id: int
+    step: int
+    projection_date: date
+    sector: str
+    asset_count: int
+    exposure_amount: Decimal
+    rwa: Decimal
+
+
 class PathScore(ForecastModel):
     """Loss-function result for one full Monte Carlo trajectory."""
 
@@ -163,6 +175,7 @@ class ForecastResponse(ForecastModel):
     summary: ForecastSummary
     market_paths: list[MarketFactorStep]
     portfolio_paths: list[PortfolioPathStep]
+    sector_paths: list[SectorPathStep]
     path_scores: list[PathScore]
     selected_path: list[PortfolioPathStep]
     limitations: list[str]

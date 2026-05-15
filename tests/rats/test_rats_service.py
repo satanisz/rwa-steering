@@ -39,6 +39,8 @@ def test_rats_service_optimizes_forecasted_rwa_with_swarm() -> None:
     assert response.summary.rwa_saving >= Decimal("0")
     assert response.summary.selected_legs <= request.constraints.max_strategy_legs
     assert len(response.candidates) <= request.top_n_candidates
+    assert all(candidate.sector for candidate in response.candidates)
+    assert all(leg.sector for leg in response.best_strategy)
     assert response.convergence
     assert all(leg.reduction_pct > Decimal("0") for leg in response.best_strategy)
 
@@ -74,4 +76,5 @@ def test_rats_fastapi_endpoint() -> None:
         payload["summary"]["projected_rwa_before_strategy"]
         >= payload["summary"]["optimized_projected_rwa"]
     )
+    assert all(candidate["sector"] for candidate in payload["candidates"])
     assert len(payload["best_strategy"]) <= 2

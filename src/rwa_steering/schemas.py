@@ -10,9 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_valid
 class SteeringModel(BaseModel):
     """Base Pydantic model for all steering API contracts.
 
-    The strict-ish configuration keeps hackathon outputs dashboard-ready and prevents silent
-    schema drift between the API, tests and future reporting exporters. Decimal values are
-    serialized as strings to avoid lossy JSON float conversion.
+    The strict configuration keeps outputs dashboard-ready and prevents silent schema drift
+    between the API, tests and future reporting exporters. Decimal values are serialized as
+    strings to avoid lossy JSON float conversion.
     """
 
     model_config = ConfigDict(
@@ -89,6 +89,7 @@ class ProjectionRow(SteeringModel):
     counterparty_gid: str
     entity_class: str
     sub_class: str
+    sector: str
     exposure_ccy: str
     current_exposure_amount: Decimal
     projected_exposure_amount: Decimal
@@ -136,6 +137,7 @@ class RecommendationRow(SteeringModel):
     counterparty_gid: str
     entity_class: str
     sub_class: str
+    sector: str
     recommended_action: str
     action_description: str
     rwa_before_action: Decimal
@@ -148,7 +150,7 @@ class RecommendationRow(SteeringModel):
 
 
 class SteeringResponse(SteeringModel):
-    """Full response returned by the steering PoC endpoint."""
+    """Full response returned by the steering endpoint."""
 
     api_version: str = "v1"
     methodology: str

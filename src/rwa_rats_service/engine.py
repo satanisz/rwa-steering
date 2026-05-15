@@ -46,6 +46,7 @@ class Candidate:
     counterparty_gid: str
     entity_class: str
     sub_class: str
+    sector: str
     action_code: str
     max_reduction_pct: Decimal
     business_cost_factor: Decimal
@@ -179,7 +180,7 @@ class RwaRATSService:
             best_strategy=[strategy_leg_to_schema(leg) for leg in evaluation.strategy],
             convergence=convergence,
             limitations=[
-                "RATS PoC uses synthetic generated inputs and deterministic swarm search.",
+                "RATS uses prepared scenario inputs and deterministic swarm search.",
                 "UEIs are simplified exposure-reduction actions, not executable market orders.",
                 (
                     "Objective combines RWA saving and proxy business cost; "
@@ -230,6 +231,7 @@ class RwaRATSService:
                         counterparty_gid=str(source_row["counterparty_gid"]),
                         entity_class=str(source_row["entity_class"]),
                         sub_class=str(source_row["sub_class"]),
+                        sector=str(source_row.get("sector", "UNKNOWN")),
                         action_code=action_code,
                         max_reduction_pct=max_reduction,
                         business_cost_factor=constraint.business_cost_factor,
@@ -545,6 +547,7 @@ def candidate_to_schema(candidate: Candidate) -> RATSUEI:
         counterparty_gid=candidate.counterparty_gid,
         entity_class=candidate.entity_class,
         sub_class=candidate.sub_class,
+        sector=candidate.sector,
         action_code=candidate.action_code,
         max_reduction_pct=candidate.max_reduction_pct,
         business_cost_factor=candidate.business_cost_factor,
@@ -561,6 +564,7 @@ def strategy_leg_to_schema(leg: StrategyLeg) -> RATSStrategyLeg:
         counterparty_gid=leg.candidate.counterparty_gid,
         entity_class=leg.candidate.entity_class,
         sub_class=leg.candidate.sub_class,
+        sector=leg.candidate.sector,
         action_code=leg.candidate.action_code,
         reduction_pct=leg.reduction_pct,
         notional_reduction_amount=leg.notional_reduction_amount,

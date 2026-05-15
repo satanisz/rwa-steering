@@ -119,6 +119,7 @@ class RATSUEI(RATSModel):
     counterparty_gid: str
     entity_class: str
     sub_class: str
+    sector: str
     action_code: str
     max_reduction_pct: Decimal
     business_cost_factor: Decimal
@@ -134,6 +135,7 @@ class RATSStrategyLeg(RATSModel):
     counterparty_gid: str
     entity_class: str
     sub_class: str
+    sector: str
     action_code: str
     reduction_pct: Decimal
     notional_reduction_amount: Decimal

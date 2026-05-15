@@ -23,12 +23,12 @@ from .transformations import parse_decimal
 
 RWA_FIELD = "basel_3_1_rwa_final"
 METHODOLOGY = (
-    "Regime-aware RWA steering PoC inspired by dynamic risk budgeting and regime "
-    "adaptation from Scientific Reports 2025; deterministic and explainable for hackathon use."
+    "Regime-aware RWA steering inspired by dynamic risk budgeting and regime adaptation; "
+    "deterministic, calculator-backed and explainable for management reporting."
 )
 
 
-class RwaSteeringPocService:
+class RwaSteeringService:
     """Run regime-aware RWA steering scenarios on top of the deterministic calculator.
 
     This service is the orchestration layer described in the executive plan. It never bypasses
@@ -39,9 +39,9 @@ class RwaSteeringPocService:
     3. Re-runs the projected rows through ``rwa_calculator``.
     4. Builds scenario summaries, attribution and recommendation outputs.
 
-    The implementation is deliberately deterministic for hackathon credibility. It borrows the
-    article's concepts of regime adaptation, dynamic risk budgeting and interpretable
-    attribution, but does not claim to train or deploy a production ML model.
+    The implementation is deliberately deterministic. It borrows the concepts of regime
+    adaptation, dynamic risk budgeting and interpretable attribution, but does not claim to train
+    or deploy a production ML model.
     """
 
     def __init__(
@@ -160,7 +160,7 @@ class RwaSteeringPocService:
             attributions=attributions,
             recommendations=recommendations,
             limitations=[
-                "PoC uses validated synthetic generated inputs, not production customer data.",
+                "The service uses validated prepared inputs, not production customer data.",
                 "Scenario assumptions are deterministic seed inputs, not calibrated ML forecasts.",
                 "Recommendations are decision-support proposals and require risk/finance review.",
             ],
@@ -225,6 +225,7 @@ class RwaSteeringPocService:
                     counterparty_gid=str(current_row["counterparty_gid"]),
                     entity_class=str(current_row["entity_class"]),
                     sub_class=str(current_row["sub_class"]),
+                    sector=str(current_row.get("sector", "UNKNOWN")),
                     exposure_ccy=str(current_row["exposure_ccy"]),
                     current_exposure_amount=parse_decimal(current_row["exposure_amount"]),
                     projected_exposure_amount=parse_decimal(projected_row["exposure_amount"]),
@@ -395,6 +396,7 @@ class RwaSteeringPocService:
                     counterparty_gid=str(row["counterparty_gid"]),
                     entity_class=str(row["entity_class"]),
                     sub_class=str(row["sub_class"]),
+                    sector=str(current_row.get("sector", row.get("sector", "UNKNOWN"))),
                     recommended_action=constraint.action_code,
                     action_description=(
                         f"Simulate {reduction_pct:.0%} exposure reduction under generated "

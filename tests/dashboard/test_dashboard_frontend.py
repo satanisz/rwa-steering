@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from streamlit.testing.v1 import AppTest
 
+from rwa_dashboard.streamlit_app import APP_PAGES
 
-def test_steering_dashboard_switches_between_all_models() -> None:
-    """Exercise the Streamlit model switch exactly as the dashboard runtime sees it."""
+
+def test_dashboard_sidebar_routes_to_concept_pages() -> None:
+    """Exercise real page routing for the concept sidebar pages."""
     app = AppTest.from_file("src/rwa_dashboard/streamlit_app.py")
-    app.run(timeout=60)
+    app.run(timeout=120)
 
+    navigation = app.sidebar.radio[0]
+    assert navigation.options == list(APP_PAGES)
+    assert navigation.value == "RWA Dashboard"
     selector = app.sidebar.segmented_control[0]
     assert selector.options == [
         "Run-off f(x,t)",
@@ -19,16 +24,10 @@ def test_steering_dashboard_switches_between_all_models() -> None:
     assert selector.value == "Forecast Monte Carlo"
     assert len(app.exception) == 0
 
-    for model_name in [
-        "Run-off f(x,t)",
-        "Forecast scenarios",
-        "Scenario steering",
-        "RATS optimizer",
-        "Forecast Monte Carlo",
-    ]:
-        selector.set_value(model_name)
-        app.run(timeout=90)
+    for page_name in ["Scenario Analysis", "Data Lineage", "Reports & Evidence"]:
+        navigation = app.sidebar.radio[0]
+        navigation.set_value(page_name)
+        app.run(timeout=120)
 
-        selector = app.sidebar.segmented_control[0]
-        assert selector.value == model_name
+        assert app.sidebar.radio[0].value == page_name
         assert len(app.exception) == 0

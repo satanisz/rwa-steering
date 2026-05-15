@@ -11,7 +11,7 @@ from typing import Any
 
 from rwa_calculator.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
 from rwa_calculator.rwa_calculator.calculator import RwaCalculator
-from rwa_steering.engine import portfolio_rwa
+from rwa_steering.engine import RWA_FIELD, portfolio_rwa
 from rwa_steering.errors import SteeringDomainError
 from rwa_steering.input_package import SteeringInputPackage, load_steering_input_package
 from rwa_steering.transformations import migrate_rating, parse_decimal
@@ -23,6 +23,7 @@ from .schemas import (
     MarketFactorStep,
     PathScore,
     PortfolioPathStep,
+    SectorPathStep,
 )
 
 FORECAST_ENGINE_VERSION = "rwa-forecast-service-0.1.0"
@@ -113,6 +114,7 @@ class RwaForecastService:
         own_funds = current_rwa * request.initial_capital_ratio
         market_paths: list[MarketFactorStep] = []
         portfolio_paths: list[PortfolioPathStep] = []
+        sector_paths: list[SectorPathStep] = []
         scores: list[PathScore] = []
 
         for path_id in range(request.path_count):
@@ -186,6 +188,15 @@ class RwaForecastService:
                 )
                 portfolio_paths.append(portfolio_step)
                 path_portfolio_steps.append(portfolio_step)
+                sector_paths.extend(
+                    sector_path_steps(
+                        path_id=path_id,
+                        step=step,
+                        projection_date=projection_date,
+                        rows=accumulator.rows,
+                        results=payload["results"],
+                    )
+                )
 
             scores.append(self._score_path(request, accumulator, path_portfolio_steps))
 
@@ -201,6 +212,7 @@ class RwaForecastService:
             summary=forecast_summary(request, scores, selected_path_id),
             market_paths=market_paths,
             portfolio_paths=portfolio_paths,
+            sector_paths=sector_paths,
             path_scores=top_scores,
             selected_path=selected_path,
             limitations=[
@@ -666,6 +678,48 @@ def market_factor_step(
         default_probability_proxy=default_probability,
         loss_probability_proxy=loss_probability,
     )
+
+
+def sector_path_steps(
+    path_id: int,
+    step: int,
+    projection_date: date,
+    rows: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+) -> list[SectorPathStep]:
+    """Aggregate one Monte Carlo step by portfolio sector using calculator output rows."""
+    source_by_id = {str(row["id"]): row for row in rows}
+    buckets: dict[str, dict[str, Decimal | int]] = {}
+    for result in results:
+        row_id = str(result["id"])
+        source_row = source_by_id.get(row_id, {})
+        sector = str(source_row.get("sector", "UNKNOWN"))
+        bucket = buckets.setdefault(
+            sector,
+            {
+                "asset_count": 0,
+                "exposure_amount": Decimal("0"),
+                "rwa": Decimal("0"),
+            },
+        )
+        bucket["asset_count"] = int(bucket["asset_count"]) + 1
+        bucket["exposure_amount"] = bucket["exposure_amount"] + parse_decimal(
+            source_row.get("exposure_amount"), default=Decimal("0")
+        )
+        bucket["rwa"] = bucket["rwa"] + parse_decimal(result[RWA_FIELD], default=Decimal("0"))
+
+    return [
+        SectorPathStep(
+            path_id=path_id,
+            step=step,
+            projection_date=projection_date,
+            sector=sector,
+            asset_count=int(values["asset_count"]),
+            exposure_amount=values["exposure_amount"].quantize(MONEY_Q),
+            rwa=values["rwa"].quantize(MONEY_Q),
+        )
+        for sector, values in sorted(buckets.items())
+    ]
 
 
 def forecast_summary(
