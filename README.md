@@ -62,7 +62,7 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard exposes the `Run-off f(x,t)` methodology and a separate regulatory capital
+The Streamlit dashboard exposes the fixed `Run-off f(x,t)` view and a separate regulatory capital
 stack panel:
 
 - current row-level credit RWA plus aggregate applicable RWA
@@ -104,7 +104,7 @@ POST http://127.0.0.1:8000/v1/leverage-ratio/calculate
 POST http://127.0.0.1:8000/v1/capital/portfolio
 ```
 
-The unversioned compatibility `POST /steering/run` route is still available during the PoC.
+The unversioned compatibility `POST /steering/run` route is still available during transition.
 Calculator and projection services follow the same pattern: `/v1/rwa/calculate` and
 `/v1/projections/calculate` are the versioned contracts, while the older unversioned routes
 remain available during transition.
@@ -181,7 +181,7 @@ Current automated gates:
 
 ## Production Readiness
 
-Before production use, the methodology, reference data, jurisdiction overlays, rating migrations,
+Before production use, the calculation approach, reference data, jurisdiction overlays, rating migrations,
 profitability inputs and steering recommendations must be reconciled with approved bank policy,
 binding legal text and model-risk governance.
 

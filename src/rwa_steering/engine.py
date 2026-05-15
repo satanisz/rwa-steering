@@ -23,12 +23,12 @@ from .transformations import parse_decimal
 
 RWA_FIELD = "basel_3_1_rwa_final"
 METHODOLOGY = (
-    "Regime-aware RWA steering PoC inspired by dynamic risk budgeting and regime "
-    "adaptation from Scientific Reports 2025; deterministic and explainable for hackathon use."
+    "Regime-aware RWA steering inspired by dynamic risk budgeting and regime "
+    "adaptation from Scientific Reports 2025; deterministic and explainable for governance review."
 )
 
 
-class RwaSteeringPocService:
+class RwaSteeringService:
     """Run regime-aware RWA steering scenarios on top of the deterministic calculator.
 
     This service is the orchestration layer described in the executive plan. It never bypasses
@@ -39,9 +39,9 @@ class RwaSteeringPocService:
     3. Re-runs the projected rows through ``rwa_calculator``.
     4. Builds scenario summaries, attribution and recommendation outputs.
 
-    The implementation is deliberately deterministic for hackathon credibility. It borrows the
-    article's concepts of regime adaptation, dynamic risk budgeting and interpretable
-    attribution, but does not claim to train or deploy a production ML model.
+    The implementation is deliberately deterministic for repeatable governance review.
+    It borrows the article's concepts of regime adaptation, dynamic risk budgeting
+    and interpretable attribution, but does not claim to train or deploy a production ML model.
     """
 
     def __init__(
@@ -160,8 +160,11 @@ class RwaSteeringPocService:
             attributions=attributions,
             recommendations=recommendations,
             limitations=[
-                "PoC uses validated synthetic generated inputs, not production customer data.",
-                "Scenario assumptions are deterministic seed inputs, not calibrated ML forecasts.",
+                "Uses validated prepared generated inputs, not production customer data.",
+                (
+                    "Scenario assumptions are deterministic input-package values, "
+                    "not calibrated ML forecasts."
+                ),
                 "Recommendations are decision-support proposals and require risk/finance review.",
             ],
             input_package_version=self.input_package.manifest.version_id,

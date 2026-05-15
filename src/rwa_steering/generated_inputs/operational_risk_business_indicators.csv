@@ -1,4 +1,4 @@
 portfolio_id,year,interest_leases_dividend_component,services_component,financial_component,source
-POC_BANKING_BOOK,2024,822168669.38,537571822.29,221353103.29,prepared_preprod_capital_seed
-POC_BANKING_BOOK,2025,897800362.99,548655777.38,216137124.42,prepared_preprod_capital_seed
-POC_BANKING_BOOK,2026,831296632.40,570497688.90,228199075.56,prepared_preprod_capital_seed
+BANKING_BOOK_CORE,2024,822168669.38,537571822.29,221353103.29,prepared_enterprise_capital_inputs
+BANKING_BOOK_CORE,2025,897800362.99,548655777.38,216137124.42,prepared_enterprise_capital_inputs
+BANKING_BOOK_CORE,2026,831296632.40,570497688.90,228199075.56,prepared_enterprise_capital_inputs

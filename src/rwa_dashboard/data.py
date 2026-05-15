@@ -33,7 +33,7 @@ from rwa_steering.input_package import load_steering_input_package
 RWA_FINAL_FIELD = "basel_3_1_rwa_final"
 RWA_FOUNDATION_FIELD = "basel_3_1_rwa_foundation"
 RWA_STANDARDISED_FIELD = "basel_3_1_rwa_standardised"
-CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
+CAPITAL_PORTFOLIO_ID = "BANKING_BOOK_CORE"
 RWA_FIELDS = (
     "basel_3_0_rwa",
     RWA_FOUNDATION_FIELD,
@@ -98,7 +98,7 @@ class RegulatoryCapitalDashboardData:
     operational_risk: dict[str, Any]
     cva_risk: dict[str, Any]
     leverage_ratio: dict[str, Any]
-    methodology_notes: list[str]
+    calculation_notes: list[str]
 
 
 @dataclass(frozen=True)
@@ -320,7 +320,7 @@ def regulatory_capital_snapshot(
         operational_risk=_capital_model_dict(operational_result),
         cva_risk=_capital_model_dict(cva_result),
         leverage_ratio=_capital_model_dict(leverage_result),
-        methodology_notes=[
+        calculation_notes=[
             "Credit RWA uses calculator output; output floor is aggregate and date phased.",
             (
                 "Operational, CVA, leverage and capital numerator inputs are loaded from "

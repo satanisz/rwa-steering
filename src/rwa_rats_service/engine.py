@@ -23,7 +23,7 @@ from .schemas import (
     RATSStrategyLeg,
 )
 
-RATS_ENGINE_VERSION = "rwa-rats-service-0.1.0"
+RATS_ENGINE_VERSION = "RWA-RATS-2026.2.0"
 METHODOLOGY = (
     "Risk-Aware Trading Swarm for RWA steering, adapted from RATPO/RATS. "
     "The service forecasts calculator inputs, builds Unique Eligible Instruments from "
@@ -179,7 +179,7 @@ class RwaRATSService:
             best_strategy=[strategy_leg_to_schema(leg) for leg in evaluation.strategy],
             convergence=convergence,
             limitations=[
-                "RATS PoC uses synthetic generated inputs and deterministic swarm search.",
+                "RATS uses prepared generated inputs and deterministic swarm search.",
                 "UEIs are simplified exposure-reduction actions, not executable market orders.",
                 ("Objective combines RWA saving and business cost; it is not model-risk approved."),
             ],

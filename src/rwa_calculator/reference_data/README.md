@@ -1,6 +1,6 @@
-# RWA Regulatory Reference Data Seed
+# RWA Regulatory Reference Data
 
-This folder contains a seed reference-data package for Basel III final reforms.
+This folder contains a controlled reference-data package for Basel III final reforms.
 
 It is intentionally split into:
 
@@ -16,4 +16,4 @@ The three initial European overlays are:
 
 These three were selected because they are major European banking regimes and can diverge materially in application dates, transition calendars, national discretions, reporting templates and local overlays.
 
-Important: this package is not marked production-ready. It is a structured implementation seed. Before production use, each overlay must be reconciled against the applicable binding legal text, local regulator rulebook, ECAI mapping and bank-specific supervisory permissions.
+Important: this package is not marked production-ready. Before production use, each overlay must be reconciled against the applicable binding legal text, local regulator rulebook, ECAI mapping and bank-specific supervisory permissions.

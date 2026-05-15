@@ -1,8 +1,8 @@
 {
-  "package_id": "rwa_regulatory_reference_seed",
-  "package_version": "0.1.0",
+  "package_id": "RWA-REG-REFERENCE",
+  "package_version": "2026.2.0",
   "production_ready": false,
-  "description": "Seed reference-data package for Basel III final reforms.",
+  "description": "Controlled reference-data package for Basel III final reforms.",
   "baseline": {
     "id": "BCBS_BASEL_III_FINAL_2017",
     "path": "bcbs/basel_iii_final_reforms_2017.json",

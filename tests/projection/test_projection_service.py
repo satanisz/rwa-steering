@@ -174,5 +174,5 @@ def test_projection_v1_fastapi_contract() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["projection_engine_version"] == "rwa-projection-alpha-0.1.0"
+    assert payload["projection_engine_version"] == "RWA-PROJECTION-2026.2.0"
     assert payload["summary"]["output_successful_projection_records"] == 2

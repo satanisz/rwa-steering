@@ -28,11 +28,11 @@ from rwa_calculator.rwa_calculator.calculator import RwaCalculator, load_core_cs
 from rwa_calculator.rwa_calculator.models import ENTITY_CLASSES, EXPOSURE_SUB_CLASSES
 from rwa_calculator.rwa_calculator.reference import load_nccr_mapping
 
-PACKAGE_NAME = "rwa_steering_missing_inputs_seed"
-VERSION_ID = "2026Q2_HACKATHON_SEED_V1"
-SYNTHETIC_SOURCE = "synthetic_hackathon_seed"
-PREPARED_CAPITAL_SOURCE = "prepared_preprod_capital_seed"
-CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
+PACKAGE_NAME = "rwa_steering_input_package"
+VERSION_ID = "RWA-ENT-2026.2.0"
+SYNTHETIC_SOURCE = "prepared_enterprise_scenario_inputs"
+PREPARED_CAPITAL_SOURCE = "prepared_enterprise_capital_inputs"
+CAPITAL_PORTFOLIO_ID = "BANKING_BOOK_CORE"
 RANDOM_SEED = 20260515
 AS_OF_DATE = date(2026, 5, 15)
 YEARS = (2026, 2027, 2028, 2029, 2030)
@@ -207,7 +207,7 @@ class FxScenarioRate(GeneratedModel):
 
 
 class MacroRegimeIndicator(GeneratedModel):
-    """Rule-based macro regime features inspired by the steering PoC article."""
+    """Rule-based macro regime features used by steering workflows."""
 
     scenario_id: str
     projection_date: date
@@ -484,7 +484,7 @@ def generate_missing_inputs(
         file_sha256=file_sha256,
         validation_status="PASSED",
         known_limitations=[
-            "Generated pre-production seed, not production customer or market data.",
+            "Prepared pre-production input package, not production customer or market data.",
             "FX rates and macro regimes are deterministic prepared scenario inputs.",
             (
                 "Profitability and capital-management values are prepared generated inputs "
@@ -514,7 +514,7 @@ class GenerationContext(BaseModel):
 
 
 def build_scenario_definitions() -> list[ScenarioDefinition]:
-    """Create the four seed scenario definitions from the executive plan."""
+    """Create the four scenario definitions used by the input package."""
     return [
         ScenarioDefinition(
             scenario_id="BASE",
@@ -729,34 +729,34 @@ def build_macro_regime_indicators() -> list[MacroRegimeIndicator]:
 
 
 def build_regulatory_overlay_selection() -> list[RegulatoryOverlaySelection]:
-    """Map seed portfolios to the jurisdiction overlays already present in reference data."""
+    """Map banking-book portfolios to the jurisdiction overlays present in reference data."""
     return [
         RegulatoryOverlaySelection(
-            portfolio_id="POC_EU_BANKING_BOOK",
+            portfolio_id="EU_BANKING_BOOK",
             legal_entity_id="LE_EU_001",
             jurisdiction_overlay="EU_CRR3_EBA",
             reporting_currency="EUR",
             application_date=date(2025, 1, 1),
             output_floor_enabled=True,
-            national_discretion_profile="EU_CRR3_SEED",
+            national_discretion_profile="EU_CRR3_STANDARD",
         ),
         RegulatoryOverlaySelection(
-            portfolio_id="POC_UK_BANKING_BOOK",
+            portfolio_id="UK_BANKING_BOOK",
             legal_entity_id="LE_UK_001",
             jurisdiction_overlay="UK_PRA_BASEL_3_1",
             reporting_currency="GBP",
             application_date=date(2027, 1, 1),
             output_floor_enabled=True,
-            national_discretion_profile="UK_PRA_SEED",
+            national_discretion_profile="UK_PRA_STANDARD",
         ),
         RegulatoryOverlaySelection(
-            portfolio_id="POC_CH_BANKING_BOOK",
+            portfolio_id="CH_BANKING_BOOK",
             legal_entity_id="LE_CH_001",
             jurisdiction_overlay="CH_FINMA_BASEL_III_FINAL",
             reporting_currency="CHF",
             application_date=date(2025, 1, 1),
             output_floor_enabled=True,
-            national_discretion_profile="CH_FINMA_SEED",
+            national_discretion_profile="CH_FINMA_STANDARD",
         ),
     ]
 
@@ -858,7 +858,7 @@ def build_portfolio_strategy_limits(
             for entity_class, sub_class in context.segment_pairs:
                 rows.append(
                     PortfolioStrategyLimit(
-                        portfolio_id="POC_BANKING_BOOK",
+                        portfolio_id=CAPITAL_PORTFOLIO_ID,
                         scenario_id=scenario,
                         projection_year=year,
                         entity_class=entity_class,
@@ -1259,12 +1259,12 @@ def build_readme() -> str:
     """Return README content explaining generated-input purpose and regeneration."""
     return f"""# RWA Steering Generated Missing Inputs
 
-This directory contains generated, non-production inputs for the RWA Steering PoC.
-The package is deterministic from seed `{RANDOM_SEED}` and version `{VERSION_ID}`.
+This directory contains generated, non-production inputs for the RWA steering service.
+The package is deterministic from control value `{RANDOM_SEED}` and release `{VERSION_ID}`.
 
 These files fill the steering gaps that do not belong inside the RWA calculator:
 scenario definitions, forecast calendar, rating migration, DLGD shocks, FX rates,
-macro regimes, regulatory overlay selection, profitability proxies, action
+macro regimes, regulatory overlay selection, profitability inputs, action
 constraints, strategy limits, data quality flags and prepared capital-stack
 inputs for CVA, operational risk, leverage ratio and capital numerators.
 
@@ -1274,14 +1274,14 @@ Regenerate with:
 uv run rwa-generate-missing-inputs
 ```
 
-The data is suitable for hackathon demos and automated tests only. It must not be
+The data is suitable for controlled lower-environment testing only. It must not be
 presented as production customer data, calibrated market forecasts or approved
 regulatory reference data.
 """
 
 
 def scenario_ids() -> tuple[str, ...]:
-    """Return seed scenarios in stable output order."""
+    """Return scenarios in stable output order."""
     return ("BASE", "DOWNSIDE", "STRESS", "RECOVERY")
 
 

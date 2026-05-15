@@ -19,9 +19,7 @@ class FastApiMicroserviceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
         self.assertEqual(response.json()["normal_distribution_backend"], "scipy.stats.norm")
-        self.assertEqual(
-            response.json()["reference_data_package_id"], "rwa_regulatory_reference_seed"
-        )
+        self.assertEqual(response.json()["reference_data_package_id"], "RWA-REG-REFERENCE")
         self.assertFalse(response.json()["reference_data_production_ready"])
 
     def test_reference_data_seed_endpoints(self) -> None:
@@ -62,7 +60,7 @@ class FastApiMicroserviceTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["calculation_engine_version"], "rwa-alpha-0.2.0")
+        self.assertEqual(response.json()["calculation_engine_version"], "RWA-CALC-2026.2.0")
         self.assertEqual(response.json()["summary"]["output_successful_records"], 1)
 
     def test_csv_calculation_endpoint_uses_batch_validation(self) -> None:

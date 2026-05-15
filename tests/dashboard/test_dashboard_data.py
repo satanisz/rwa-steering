@@ -9,10 +9,7 @@ from rwa_dashboard.data import (
     regulatory_capital_snapshot,
     runoff_projection,
 )
-from rwa_dashboard.streamlit_app import (
-    RUNOFF_METHODOLOGY_LABEL,
-    RUNOFF_METHODOLOGY_OPTIONS,
-)
+from rwa_dashboard.streamlit_app import MODEL_RUNOFF
 
 
 def test_current_rwa_snapshot_aggregates_preprod_rows() -> None:
@@ -45,15 +42,11 @@ def test_regulatory_capital_dashboard_data_exposes_final_reform_modules() -> Non
     assert {"Credit RWA pre-floor", "CVA RWA", "Operational risk RWA"}.issubset(
         set(capital.capital_stack["component"])
     )
-    assert any("prepared generated CSV" in note for note in capital.methodology_notes)
+    assert any("prepared generated CSV" in note for note in capital.calculation_notes)
 
 
-def test_dashboard_frontend_exposes_only_runoff_methodology_option() -> None:
-    assert RUNOFF_METHODOLOGY_OPTIONS == ("Run-off f(x,t)",)
-
-
-def test_dashboard_frontend_labels_runoff_methodology() -> None:
-    assert RUNOFF_METHODOLOGY_LABEL == "Run-off f(x,t)"
+def test_dashboard_frontend_uses_fixed_runoff_workflow() -> None:
+    assert MODEL_RUNOFF == "Run-off f(x,t)"
 
 
 def test_input_package_overview_reads_manifest_and_quality_flags() -> None:

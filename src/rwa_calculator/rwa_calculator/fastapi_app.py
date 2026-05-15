@@ -38,7 +38,7 @@ from .normal_distribution import NormalDistribution
 from .pandera_validation import read_core_csv_bytes, read_country_csv_bytes
 from .reference import ReferenceDataPackage
 
-CALCULATION_ENGINE_VERSION = "rwa-alpha-0.2.0"
+CALCULATION_ENGINE_VERSION = "RWA-CALC-2026.2.0"
 
 
 class ServiceSettings:

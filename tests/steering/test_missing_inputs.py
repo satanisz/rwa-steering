@@ -70,10 +70,12 @@ def test_loaded_input_package_projects_rows_from_generated_assumptions() -> None
     assert projected["counterparty_fcy_internal_rating"] != row["counterparty_fcy_internal_rating"]
     assert package.profitability_for(row["id"]) is not None
     assert package.best_reduction_constraint(row) is not None
-    assert package.capital_position_for("POC_BANKING_BOOK", package.forecast_calendar[0].as_of_date)
-    assert len(package.operational_losses_for("POC_BANKING_BOOK")) == 10
-    assert package.cva_netting_sets_for("POC_BANKING_BOOK")
-    assert package.leverage_off_balance_sheet_items_for("POC_BANKING_BOOK")
+    assert package.capital_position_for(
+        "BANKING_BOOK_CORE", package.forecast_calendar[0].as_of_date
+    )
+    assert len(package.operational_losses_for("BANKING_BOOK_CORE")) == 10
+    assert package.cva_netting_sets_for("BANKING_BOOK_CORE")
+    assert package.leverage_off_balance_sheet_items_for("BANKING_BOOK_CORE")
 
 
 def test_generated_open_book_projection_renews_matured_exposures() -> None:

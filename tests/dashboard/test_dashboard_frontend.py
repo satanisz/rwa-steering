@@ -3,12 +3,11 @@ from __future__ import annotations
 from streamlit.testing.v1 import AppTest
 
 
-def test_dashboard_exposes_only_runoff_methodology() -> None:
-    """Exercise the Streamlit model switch exactly as the dashboard runtime sees it."""
+def test_dashboard_does_not_render_runoff_selector() -> None:
+    """The Streamlit dashboard should expose the fixed run-off workflow without a selector."""
     app = AppTest.from_file("src/rwa_dashboard/streamlit_app.py")
     app.run(timeout=60)
 
-    selector = app.sidebar.segmented_control[0]
-    assert selector.options == ["Run-off f(x,t)"]
-    assert selector.value == "Run-off f(x,t)"
+    assert len(app.sidebar.segmented_control) == 0
+    assert len(app.sidebar.radio) == 0
     assert len(app.exception) == 0

@@ -6,10 +6,10 @@ from decimal import Decimal
 
 @dataclass(frozen=True)
 class ScenarioAssumption:
-    """Versioned scenario knobs used by the steering PoC.
+    """Versioned scenario knobs used by the steering service.
 
-    The PoC intentionally keeps assumptions in code instead of generating the full
-    missing-input package. This makes the hackathon demo deterministic while still
+    The fallback scenario library intentionally keeps assumptions in code instead of
+    generating the full missing-input package. This makes local runs deterministic while still
     exposing the same conceptual levers from the executive plan: regime label,
     dynamic risk budget, exposure growth, rating migration, DLGD shock and FX shock.
     Later production work should move these values into validated scenario input files.
@@ -94,7 +94,7 @@ def get_scenario(scenario_id: str) -> ScenarioAssumption:
     """Return a scenario by id using a case-insensitive lookup.
 
     Raises:
-        ValueError: If the scenario id is not part of the built-in PoC scenario library.
+        ValueError: If the scenario id is not part of the built-in scenario library.
     """
 
     try:

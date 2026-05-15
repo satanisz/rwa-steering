@@ -1,2 +1,2 @@
 portfolio_id,calculation_date,approach,aggregate_non_centrally_cleared_derivative_notional,ccr_capital_requirement,materiality_option_elected,supervisor_approved_sa_cva,alpha,rho,beta,sa_cva_multiplier,source
-POC_BANKING_BOOK,2026-05-15,BA_FULL,1128985283.40,9031882.27,false,false,1.40,0.50,0.25,1.25,prepared_preprod_capital_seed
+BANKING_BOOK_CORE,2026-05-15,BA_FULL,1128985283.40,9031882.27,false,false,1.40,0.50,0.25,1.25,prepared_enterprise_capital_inputs

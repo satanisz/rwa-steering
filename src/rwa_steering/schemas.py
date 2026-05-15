@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_valid
 class SteeringModel(BaseModel):
     """Base Pydantic model for all steering API contracts.
 
-    The strict-ish configuration keeps hackathon outputs dashboard-ready and prevents silent
+    The strict-ish configuration keeps service outputs dashboard-ready and prevents silent
     schema drift between the API, tests and future reporting exporters. Decimal values are
     serialized as strings to avoid lossy JSON float conversion.
     """
@@ -148,7 +148,7 @@ class RecommendationRow(SteeringModel):
 
 
 class SteeringResponse(SteeringModel):
-    """Full response returned by the steering PoC endpoint."""
+    """Full response returned by the steering endpoint."""
 
     api_version: str = "v1"
     methodology: str

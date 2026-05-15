@@ -25,7 +25,7 @@ from .schemas import (
     PortfolioPathStep,
 )
 
-FORECAST_ENGINE_VERSION = "rwa-forecast-service-0.1.0"
+FORECAST_ENGINE_VERSION = "RWA-FORECAST-2026.2.0"
 METHODOLOGY = (
     "Autoregressive VAR/recurrent market-factor forecast with Monte Carlo portfolio "
     "trajectory generation and multi-period path scoring for RWA-aware ALM simulation."

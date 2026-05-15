@@ -19,7 +19,7 @@ from .schemas import (
     ProjectionResponse,
 )
 
-PROJECTION_ENGINE_VERSION = "rwa-projection-alpha-0.1.0"
+PROJECTION_ENGINE_VERSION = "RWA-PROJECTION-2026.2.0"
 DAY_COUNT_DENOMINATOR = Decimal("365")
 PROJECTION_VALUE_FIELDS = (
     "basel_3_0_rw_final",

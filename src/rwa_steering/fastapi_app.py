@@ -3,23 +3,23 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .engine import RwaSteeringPocService
+from .engine import RwaSteeringService
 from .errors import SteeringDomainError
 from .schemas import ApiErrorDetail, ApiErrorResponse, SteeringRequest, SteeringResponse
 
-STEERING_ENGINE_VERSION = "rwa-steering-poc-0.1.0"
+STEERING_ENGINE_VERSION = "RWA-STEERING-2026.2.0"
 
 
 def create_app() -> FastAPI:
-    """Create the FastAPI application for the steering PoC.
+    """Create the FastAPI application for the steering service.
 
     The app is intentionally thin: request validation is handled by Pydantic schemas and all
-    business logic lives in ``RwaSteeringPocService`` so it can be tested without HTTP.
+    business logic lives in ``RwaSteeringService`` so it can be tested without HTTP.
     """
 
-    service = RwaSteeringPocService()
+    service = RwaSteeringService()
     app = FastAPI(
-        title="RWA Steering PoC",
+        title="RWA Steering",
         version=STEERING_ENGINE_VERSION,
         description="Regime-aware RWA forecasting, attribution and steering recommendations.",
     )
@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
         """Return lightweight liveness metadata for the steering API."""
         return {
             "status": "ok",
-            "service": "rwa-steering-poc",
+            "service": "rwa-steering",
             "steering_engine_version": STEERING_ENGINE_VERSION,
             "input_package_version": app.state.service.input_package.manifest.version_id,
             "input_package_validation_status": (
@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
     @app.post("/v1/steering/run", response_model=SteeringResponse, tags=["steering"])
     @app.post("/steering/run", response_model=SteeringResponse, tags=["steering"])
     def run(request: SteeringRequest) -> SteeringResponse:
-        """Run the deterministic steering PoC for the requested scenarios."""
+        """Run the deterministic steering workflow for the requested scenarios."""
         return app.state.service.run(request)
 
     return app

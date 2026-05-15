@@ -24,8 +24,6 @@ RWA_LABELS = {
     RWA_FINAL_FIELD: "Basel 3.1 row-level RWA",
 }
 MODEL_RUNOFF = "Run-off f(x,t)"
-RUNOFF_METHODOLOGY_LABEL = MODEL_RUNOFF
-RUNOFF_METHODOLOGY_OPTIONS = (MODEL_RUNOFF,)
 CET1_MINIMUM_DASHBOARD_REQUIREMENT = 0.105
 
 DASHBOARD_DARK_CSS = """
@@ -55,26 +53,6 @@ DASHBOARD_DARK_CSS = """
     section[data-testid="stSidebar"] * {
         color: #d9e6f7;
     }
-    .dashboard-sidebar-mark {
-        display: grid;
-        gap: 0.75rem;
-        padding: 0.35rem 0 1.1rem;
-    }
-    .dashboard-nav-item {
-        border: 1px solid rgba(124, 166, 237, 0.24);
-        border-radius: 8px;
-        padding: 0.72rem 0.8rem;
-        background: rgba(8, 22, 42, 0.72);
-        color: #dce9fb;
-        font-weight: 700;
-        letter-spacing: 0;
-        text-align: center;
-    }
-    .dashboard-nav-item.active {
-        background: linear-gradient(135deg, #0a4ad6, #0c2d76);
-        border-color: rgba(89, 152, 255, 0.60);
-        box-shadow: 0 14px 34px rgba(18, 87, 210, 0.30);
-    }
     .dashboard-title-wrap {
         border: 1px solid rgba(90, 131, 190, 0.28);
         border-radius: 22px;
@@ -102,74 +80,6 @@ DASHBOARD_DARK_CSS = """
         color: #aebbd0;
         font-size: 1rem;
         margin: 0.5rem 0 0;
-    }
-    .dashboard-kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 1rem;
-        margin: 1rem 0 1.35rem;
-    }
-    .dashboard-kpi-card {
-        min-height: 132px;
-        border: 1px solid rgba(86, 126, 183, 0.30);
-        border-radius: 8px;
-        background: linear-gradient(145deg, rgba(7, 20, 38, 0.96), rgba(4, 14, 29, 0.92));
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        padding: 1.35rem 1.45rem;
-        display: grid;
-        grid-template-columns: 58px 1fr;
-        column-gap: 1rem;
-        align-items: center;
-    }
-    .dashboard-kpi-icon {
-        align-items: center;
-        border-radius: 8px;
-        display: flex;
-        font-size: 0.9rem;
-        font-weight: 900;
-        height: 58px;
-        justify-content: center;
-        letter-spacing: 0;
-        width: 58px;
-    }
-    .dashboard-kpi-card.blue .dashboard-kpi-icon {
-        background: rgba(18, 98, 255, 0.18);
-        color: #1f7cff;
-    }
-    .dashboard-kpi-card.violet .dashboard-kpi-icon {
-        background: rgba(122, 85, 255, 0.18);
-        color: #8b6dff;
-    }
-    .dashboard-kpi-card.green .dashboard-kpi-icon {
-        background: rgba(22, 199, 120, 0.16);
-        color: #2bd27f;
-    }
-    .dashboard-kpi-card.amber .dashboard-kpi-icon {
-        background: rgba(245, 176, 33, 0.18);
-        color: #ffc83d;
-    }
-    .dashboard-kpi-label {
-        color: #cbd7e7;
-        font-size: 0.96rem;
-        font-weight: 700;
-        margin-bottom: 0.4rem;
-    }
-    .dashboard-kpi-value {
-        color: #f8fbff;
-        font-size: 1.75rem;
-        font-weight: 850;
-        line-height: 1;
-    }
-    .dashboard-kpi-value.negative {
-        color: #ff4f55;
-    }
-    .dashboard-kpi-value.positive {
-        color: #2bd27f;
-    }
-    .dashboard-kpi-sub {
-        color: #8fa4be;
-        font-size: 0.82rem;
-        margin-top: 0.35rem;
     }
     div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stAltairChart"]),
     div[data-testid="stDataFrame"] {
@@ -208,14 +118,8 @@ DASHBOARD_DARK_CSS = """
         color: #aebbd0;
     }
     @media (max-width: 1100px) {
-        .dashboard-kpi-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
     }
     @media (max-width: 700px) {
-        .dashboard-kpi-grid {
-            grid-template-columns: 1fr;
-        }
         .dashboard-title-wrap {
             padding: 1.35rem;
         }
@@ -254,19 +158,15 @@ def main() -> None:
     apply_dashboard_theme()
 
     default_date = default_as_of_date()
-    render_dashboard_sidebar()
-    st.sidebar.title("Parametry")
-    as_of_date = st.sidebar.date_input("Dzien kalkulacji", value=default_date)
-    selected_methodology = methodology_selector()
+    st.sidebar.title("Parameters")
+    as_of_date = st.sidebar.date_input("Calculation date", value=default_date)
     snapshot = cached_current(as_of_date)
     capital = cached_regulatory_capital(as_of_date)
     overview = cached_input_package()
 
     render_dashboard_header(as_of_date)
 
-    tab_current, tab_model, tab_data = st.tabs(
-        ["Dashboard", "Run-off methodology", "Dane i jakosc"]
-    )
+    tab_current, tab_model, tab_data = st.tabs(["Dashboard", "Run-off", "Data quality"])
 
     with tab_current:
         overview_runoff = cached_runoff_projection(as_of_date, 12, 100)
@@ -275,7 +175,7 @@ def main() -> None:
         render_regulatory_capital(capital)
 
     with tab_model:
-        render_runoff_methodology(selected_methodology, as_of_date)
+        render_runoff_view(as_of_date)
 
     with tab_data:
         render_input_package(overview)
@@ -284,21 +184,6 @@ def main() -> None:
 def apply_dashboard_theme() -> None:
     """Inject the dark cockpit styling for the Streamlit shell."""
     st.markdown(DASHBOARD_DARK_CSS, unsafe_allow_html=True)
-
-
-def render_dashboard_sidebar() -> None:
-    """Render the compact navigation rail motif in the sidebar."""
-    st.sidebar.markdown(
-        """
-        <div class="dashboard-sidebar-mark">
-            <div class="dashboard-nav-item active">RWA</div>
-            <div class="dashboard-nav-item">CAP</div>
-            <div class="dashboard-nav-item">RUN</div>
-            <div class="dashboard-nav-item">DQ</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def render_dashboard_header(as_of_date: date) -> None:
@@ -326,36 +211,26 @@ def render_dashboard_overview(snapshot, capital, overview, runoff) -> None:
         (
             {
                 "tone": "blue",
-                "icon": "RWA",
                 "label": "Total RWA",
                 "value": format_full_money(output_floor["applicable_rwa"]),
-                "value_class": "",
                 "sub": "PLN applicable RWA",
             },
             {
                 "tone": "violet",
-                "icon": "C1",
                 "label": "CET1 Ratio Impact",
                 "value": format_pp(cet1_impact),
-                "value_class": "negative" if cet1_impact < 0 else "positive",
                 "sub": "vs pre-floor ratio",
             },
             {
                 "tone": "green",
-                "icon": "BF",
                 "label": "Capital Buffer",
                 "value": format_pp(capital_buffer),
-                "value_class": "positive" if capital_buffer >= 0 else "negative",
                 "sub": "CET1 vs 10.5% dashboard threshold",
             },
             {
                 "tone": "amber",
-                "icon": "DQ",
                 "label": "Data Quality Score",
                 "value": format_pct(quality_score),
-                "value_class": "positive"
-                if quality_score is not None and quality_score >= 0.95
-                else "",
                 "sub": f"{len(overview.data_quality_flags):,} flags in prepared package",
             },
         )
@@ -372,24 +247,11 @@ def render_dashboard_overview(snapshot, capital, overview, runoff) -> None:
 
 
 def render_dashboard_kpis(cards: tuple[dict[str, str], ...]) -> None:
-    """Render KPI cards as a single responsive dark grid."""
-    card_html = "\n".join(
-        f"""
-        <div class="dashboard-kpi-card {card["tone"]}">
-            <div class="dashboard-kpi-icon">{card["icon"]}</div>
-            <div>
-                <div class="dashboard-kpi-label">{card["label"]}</div>
-                <div class="dashboard-kpi-value {card["value_class"]}">{card["value"]}</div>
-                <div class="dashboard-kpi-sub">{card["sub"]}</div>
-            </div>
-        </div>
-        """
-        for card in cards
-    )
-    st.markdown(
-        f"""<div class="dashboard-kpi-grid">{card_html}</div>""",
-        unsafe_allow_html=True,
-    )
+    """Render KPI cards with native Streamlit metrics."""
+    columns = st.columns(len(cards))
+    for column, card in zip(columns, cards, strict=True):
+        column.metric(card["label"], card["value"])
+        column.caption(card["sub"])
 
 
 def data_quality_score(snapshot, overview) -> float | None:
@@ -550,37 +412,14 @@ def runoff_driver_table(frame: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([table, total], ignore_index=True)
 
 
-def methodology_selector() -> str:
-    """Render the methodology switch with a Streamlit-version-safe fallback."""
-    control = getattr(st.sidebar, "segmented_control", None)
-    if callable(control):
-        return str(
-            control(
-                "Metodologia",
-                options=RUNOFF_METHODOLOGY_OPTIONS,
-                default=MODEL_RUNOFF,
-            )
-            or MODEL_RUNOFF
-        )
-    return str(
-        st.sidebar.radio(
-            "Metodologia",
-            RUNOFF_METHODOLOGY_OPTIONS,
-            index=RUNOFF_METHODOLOGY_OPTIONS.index(MODEL_RUNOFF),
-        )
-    )
-
-
-def render_runoff_methodology(selected_methodology: str, as_of_date: date) -> None:
-    """Run and render exactly one selected run-off methodology."""
-    st.subheader(selected_methodology)
-    if selected_methodology == MODEL_RUNOFF:
-        projected_months = st.slider("Horyzont run-off w miesiacach", 1, 24, 24)
-        assets = st.slider("Aktywa w run-off", 10, 300, 100, 10)
-        with st.spinner("Liczenie run-off obecnego portfela..."):
-            runoff = cached_runoff_projection(as_of_date, projected_months, assets)
-        render_runoff(runoff)
-        return
+def render_runoff_view(as_of_date: date) -> None:
+    """Run and render the fixed run-off workflow."""
+    st.subheader(MODEL_RUNOFF)
+    projected_months = st.slider("Run-off horizon in months", 1, 24, 24)
+    assets = st.slider("Run-off assets", 10, 300, 100, 10)
+    with st.spinner("Calculating current portfolio run-off..."):
+        runoff = cached_runoff_projection(as_of_date, projected_months, assets)
+    render_runoff(runoff)
 
 
 def render_current(snapshot) -> None:
@@ -593,16 +432,16 @@ def render_current(snapshot) -> None:
     col_rwa.metric("Credit RWA", format_money(total_rwa))
     col_exposure.metric("Exposure amount", format_money(total_exposure))
     col_density.metric("RWA density", format_pct(density))
-    col_failures.metric("Bledy walidacji", snapshot.summary["output_failure_records"])
+    col_failures.metric("Validation errors", snapshot.summary["output_failure_records"])
 
     left, right = st.columns([1.15, 1])
     with left:
-        st.subheader("RWA wedlug klasy ekspozycji")
+        st.subheader("RWA by exposure class")
         chart = (
             alt.Chart(snapshot.by_entity)
             .mark_bar()
             .encode(
-                x=alt.X("entity_class:N", title="Klasa ekspozycji"),
+                x=alt.X("entity_class:N", title="Exposure class"),
                 y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level RWA"),
                 color=alt.Color("entity_class:N", legend=None),
                 tooltip=[
@@ -629,7 +468,7 @@ def render_current(snapshot) -> None:
         )
         st.altair_chart(stack, width="stretch")
 
-    st.subheader("Najwieksze kontrybutory RWA")
+    st.subheader("Largest RWA contributors")
     st.dataframe(format_table(snapshot.top_assets), width="stretch", hide_index=True)
 
 
@@ -699,35 +538,35 @@ def render_regulatory_capital(capital) -> None:
             hide_index=True,
         )
 
-    for note in capital.methodology_notes:
+    for note in capital.calculation_notes:
         st.caption(note)
 
 
 def render_runoff(projection) -> None:
     """Render closed-book run-off projection charts."""
     col_assets, col_dates, col_errors = st.columns(3)
-    col_assets.metric("Aktywa w run-off", projection.selected_asset_count)
-    col_dates.metric("Punkty czasowe", len(projection.aggregate))
-    col_errors.metric("Bledy run-off", len(projection.errors))
+    col_assets.metric("Run-off assets", projection.selected_asset_count)
+    col_dates.metric("Time points", len(projection.aggregate))
+    col_errors.metric("Run-off errors", len(projection.errors))
 
     line_frame = projection.aggregate.rename(columns=RWA_LABELS)
     measures = list(RWA_LABELS.values())
     long_frame = line_frame.melt(
         id_vars="projection_date",
         value_vars=measures,
-        var_name="Miara",
+        var_name="Measure",
         value_name="RWA",
     )
     chart = (
         alt.Chart(long_frame)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("RWA:Q", title="RWA"),
-            color=alt.Color("Miara:N"),
+            color=alt.Color("Measure:N"),
             tooltip=[
-                alt.Tooltip("projection_date:T", title="Data"),
-                "Miara",
+                alt.Tooltip("projection_date:T", title="Date"),
+                "Measure",
                 alt.Tooltip("RWA:Q", format=",.0f"),
             ],
         )
@@ -744,10 +583,10 @@ def render_runoff(projection) -> None:
         alt.Chart(asset_frame)
         .mark_line(point=True)
         .encode(
-            x=alt.X("projection_date:T", title="Data"),
+            x=alt.X("projection_date:T", title="Date"),
             y=alt.Y("RWA:Q", title="Basel 3.1 row-level RWA"),
             tooltip=[
-                alt.Tooltip("projection_date:T", title="Data"),
+                alt.Tooltip("projection_date:T", title="Date"),
                 "id",
                 "entity_class",
                 "sub_class",
@@ -761,15 +600,15 @@ def render_runoff(projection) -> None:
 
 def render_input_package(overview) -> None:
     """Render generated-input manifest and data-quality diagnostics."""
-    col_version, col_status, col_seed, col_files = st.columns(4)
-    col_version.metric("Wersja", overview.manifest["version_id"])
-    col_status.metric("Walidacja", overview.manifest["validation_status"])
-    col_seed.metric("Seed", overview.manifest["random_seed"])
-    col_files.metric("Pliki", len(overview.manifest["generated_files"]))
+    col_version, col_status, col_control, col_files = st.columns(4)
+    col_version.metric("Version", overview.manifest["version_id"])
+    col_status.metric("Validation", overview.manifest["validation_status"])
+    col_control.metric("Control ID", overview.manifest["random_seed"])
+    col_files.metric("Files", len(overview.manifest["generated_files"]))
 
     left, right = st.columns([1, 1])
     with left:
-        st.subheader("Wygenerowane pliki")
+        st.subheader("Generated files")
         st.dataframe(overview.row_counts, width="stretch", hide_index=True)
     with right:
         st.subheader("Quality flags")

@@ -1,5 +1,5 @@
-"""Regime-aware RWA steering proof of concept."""
+"""Regime-aware RWA steering service."""
 
-from .engine import RwaSteeringPocService
+from .engine import RwaSteeringService
 
-__all__ = ["RwaSteeringPocService"]
+__all__ = ["RwaSteeringService"]
