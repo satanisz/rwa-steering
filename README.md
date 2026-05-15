@@ -3,9 +3,11 @@
 Python `src/` layout repository for Basel III RWA calculation, projection and steering services:
 
 - `src/rwa_calculator` - RWA calculator backend, exposed as `rwa-calculator`.
+- `src/rwa_forecast_service` - VAR/LSTM-proxy forecast and Monte Carlo trajectory service.
 - `src/rwa_projection_service` - projection service using `rwa_calculator` as `f(x, t)`.
 - `src/rwa_steering` - regime-aware steering service with generated scenario inputs,
   attribution and recommendations.
+- `src/rwa_rats_service` - Risk-Aware Trading Swarm optimization service for forecasted RWA.
 - `src/rwa_dashboard` - Streamlit dashboard over the calculator, projection and steering services.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
@@ -45,9 +47,11 @@ uv build
 ```powershell
 uv run rwa-calculator calculate --out build/calculator/results.json --trace
 uv run rwa-calculator serve-fastapi --host 127.0.0.1 --port 8000
+uv run rwa-forecast --host 127.0.0.1 --port 8040
 uv run rwa-generate-missing-inputs
 uv run rwa-dashboard --host 127.0.0.1 --port 8501
 uv run rwa-projection --host 127.0.0.1 --port 8010
+uv run rwa-rats --host 127.0.0.1 --port 8030
 uv run rwa-steering --host 127.0.0.1 --port 8020
 ```
 
@@ -71,10 +75,22 @@ Projection endpoint:
 POST http://127.0.0.1:8010/v1/projections/calculate
 ```
 
+Forecast endpoint:
+
+```text
+POST http://127.0.0.1:8040/v1/forecasts/run
+```
+
 Steering endpoint:
 
 ```text
 POST http://127.0.0.1:8020/v1/steering/run
+```
+
+RATS endpoint:
+
+```text
+POST http://127.0.0.1:8030/v1/rats/optimize
 ```
 
 The legacy `POST /steering/run` route is still available for compatibility during the PoC.
@@ -87,10 +103,21 @@ rows. It returns `t0 = run_date` plus month-end projection points. Maturity equa
 calculated; negative projected maturity returns zero projection values; missing maturity returns
 null projection values.
 
+The forecast service simulates multi-period ALM trajectories before optimization. It supports a
+classic VAR-style autoregressive factor model and a lightweight `LSTM_PROXY` recurrent model,
+then generates Monte Carlo paths of market factors, portfolio baskets, RWA, profit, capital-ratio
+breaches, turnover and drawdown. Each full path is scored with a loss function balancing profit
+against RWA floor penalties, turnover, drawdown and terminal RWA usage.
+
 The steering service applies BASE, DOWNSIDE, STRESS and RECOVERY assumptions from the generated
 input package to the current input records, calls the existing RWA calculator, and returns
 scenario summaries, projection rows, portfolio attribution and ranked decision-support
 recommendations. Structured domain errors are returned as:
+
+The RATS service implements a deterministic Risk-Aware Trading Swarm inspired by RATPO/RATS. It
+forecasts calculator inputs to a scenario/date, builds Unique Eligible Instruments from allowed
+steering actions, and searches for an eligible optimization strategy that improves projected RWA
+after business cost, concentration and risk-limit penalties.
 
 ```json
 {
