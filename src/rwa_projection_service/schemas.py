@@ -75,6 +75,7 @@ class OutputProjection(ProjectionModel):
 
     id: str
     projection_date: date
+    sector: str
     basel_3_0_rw_final: Decimal | None = Field(default=None, ge=Decimal("0"))
     basel_3_0_rwa: Decimal | None = Field(default=None, ge=Decimal("0"))
     basel_3_0_ro_rw: Decimal | None = Field(default=None, ge=Decimal("0"))

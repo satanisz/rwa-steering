@@ -54,6 +54,7 @@ class RwaResult(ApiModel):
 
     id: str
     counterparty_gid: str
+    sector: str
     basel_3_0_pd: Decimal
     basel_3_1_pd: Decimal
     basel_3_0_dlgd: Decimal
@@ -78,6 +79,7 @@ class RwaProjection(ApiModel):
 
     id: str
     projection_date: date
+    sector: str | None = None
     basel_3_0_rw_final: Decimal | None = None
     basel_3_0_rwa: Decimal | None = None
     basel_3_0_ro_rw: Decimal | None = None

@@ -164,6 +164,7 @@ class CoreInfoRecord(StrictRwaModel):
     pd_classification: Code
     entity_class: EntityClass
     sub_class: ExposureSubClass
+    sector: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]{1,63}$")]
     counterparty_dlgd: Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))]
     govt_guarantee_flag: Literal["Y", "N"]
     trade_external_rating: ExternalRating | None = None
@@ -279,6 +280,7 @@ class OutputSuccessRecord(RwaOutputBase):
 
     id: Annotated[str, Field(min_length=1, max_length=64)]
     counterparty_gid: Annotated[str, Field(min_length=1, max_length=64)]
+    sector: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]{1,63}$")]
     basel_3_0_pd: Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))] | None = None
     basel_3_1_pd: Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))] | None = None
     basel_3_0_dlgd: Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))] | None = None
@@ -293,6 +295,7 @@ class OutputProjectionRecord(RwaOutputBase):
 
     id: Annotated[str, Field(min_length=1, max_length=64)]
     projection_date: date
+    sector: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]{1,63}$")]
 
 
 class RwaError(StrictRwaModel):

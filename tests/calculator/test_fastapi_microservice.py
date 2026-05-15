@@ -50,6 +50,7 @@ class FastApiMicroserviceTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["output_successful_records"], 1)
         self.assertEqual(payload["summary"]["output_failure_records"], 0)
         self.assertEqual(payload["results"][0]["id"], row["id"])
+        self.assertEqual(payload["results"][0]["sector"], row["sector"])
         self.assertTrue(payload["results"][0]["trace"])
 
     def test_v1_json_calculation_contract(self) -> None:

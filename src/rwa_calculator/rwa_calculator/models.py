@@ -53,6 +53,16 @@ EXTERNAL_RATINGS = {
 }
 
 ENTITY_CLASSES = {"SOV", "CORP", "BANK", "PSE", "MDB", "FI", "RETAIL", "OTHER"}
+SECTORS = {
+    "PUBLIC_SECTOR",
+    "FINANCIALS",
+    "CORPORATES",
+    "REAL_ESTATE",
+    "RETAIL",
+    "INFRASTRUCTURE",
+    "COMMODITIES",
+    "OTHER",
+}
 EXPOSURE_SUB_CLASSES = {
     "GENERAL",
     "SOVEREIGN",
@@ -81,6 +91,7 @@ CORE_INFO_COLUMNS = (
     "pd_classification",
     "entity_class",
     "sub_class",
+    "sector",
     "counterparty_dlgd",
     "govt_guarantee_flag",
     "trade_external_rating",
@@ -220,6 +231,7 @@ class CoreInfoRecord:
     pd_classification: str
     entity_class: str
     sub_class: str
+    sector: str
     counterparty_dlgd: Decimal
     govt_guarantee_flag: str
     trade_external_rating: str | None
@@ -249,6 +261,10 @@ class CoreInfoRecord:
         if sub_class not in EXPOSURE_SUB_CLASSES:
             raise ValueError(f"sub_class has unsupported value {sub_class!r}")
 
+        sector = require_code(row["sector"], "sector")
+        if sector not in SECTORS:
+            raise ValueError(f"sector has unsupported value {sector!r}")
+
         credit_quality = require_code(
             row["counterparty_credit_quality_grade"], "counterparty_credit_quality_grade"
         )
@@ -274,6 +290,7 @@ class CoreInfoRecord:
             pd_classification=str(row["pd_classification"]).strip().upper(),
             entity_class=entity_class,
             sub_class=sub_class,
+            sector=sector,
             counterparty_dlgd=parse_decimal(row["counterparty_dlgd"], "counterparty_dlgd"),
             govt_guarantee_flag=require_flag(row["govt_guarantee_flag"], "govt_guarantee_flag"),
             trade_external_rating=normalise_optional_external_rating(

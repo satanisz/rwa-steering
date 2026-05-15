@@ -7,5 +7,32 @@
     "preprod_core_info_1000.csv",
     "preprod_country_info.csv"
   ],
-  "schema": "rwa_pydantic_schemas.CoreInfoRecord"
+  "schema": "rwa_pydantic_schemas.CoreInfoRecord",
+  "core_columns": [
+    "id",
+    "counterparty_gid",
+    "hsbc_intragroup_flag",
+    "counterparty_fcy_internal_rating",
+    "counterparty_lcy_internal_rating",
+    "incorporation_country",
+    "lgd_classification",
+    "pd_classification",
+    "entity_class",
+    "sub_class",
+    "sector",
+    "counterparty_dlgd",
+    "govt_guarantee_flag",
+    "trade_external_rating",
+    "counterparty_external_rating",
+    "avc",
+    "pra_io_mdb_3_1_flag",
+    "exposure_ccy",
+    "bond_or_loan_flag",
+    "original_maturity",
+    "residual_maturity",
+    "exposure_amount",
+    "expected_yield",
+    "counterparty_credit_quality_grade"
+  ],
+  "sector_count": 8
 }

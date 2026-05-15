@@ -92,6 +92,25 @@ SUBCLASSES_BY_ENTITY = {
 }
 
 
+def sector_for_exposure(entity: EntityClass, sub_class: ExposureSubClass) -> str:
+    """Map calculator exposure class and product sub-class to portfolio sector."""
+    if entity in {EntityClass.SOV, EntityClass.PSE, EntityClass.MDB}:
+        return "PUBLIC_SECTOR"
+    if entity in {EntityClass.BANK, EntityClass.FI}:
+        return "FINANCIALS"
+    if entity == EntityClass.RETAIL:
+        return "REAL_ESTATE" if sub_class == ExposureSubClass.RESIDENTIAL_REAL_ESTATE else "RETAIL"
+    if sub_class == ExposureSubClass.COMMERCIAL_REAL_ESTATE:
+        return "REAL_ESTATE"
+    if sub_class == ExposureSubClass.PROJECT_FINANCE:
+        return "INFRASTRUCTURE"
+    if sub_class == ExposureSubClass.COMMODITIES_FINANCE:
+        return "COMMODITIES"
+    if entity == EntityClass.CORP:
+        return "CORPORATES"
+    return "OTHER"
+
+
 def parse_percent(value: str) -> Decimal:
     text = value.strip()
     if text.endswith("%"):
@@ -238,6 +257,7 @@ def build_core_rows(nccr_mapping: dict[str, dict[str, Decimal]]) -> list[dict[st
             "pd_classification": f"PD_{pd_bucket}",
             "entity_class": entity.value,
             "sub_class": sub_class.value,
+            "sector": sector_for_exposure(entity, sub_class),
             "counterparty_dlgd": decimal_text(dlgd),
             "govt_guarantee_flag": "Y"
             if entity in {EntityClass.SOV, EntityClass.PSE, EntityClass.MDB} or rng.random() < 0.07

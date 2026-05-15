@@ -56,6 +56,7 @@ CORE_METADATA_COLUMNS = (
     "id",
     "entity_class",
     "sub_class",
+    "sector",
     "exposure_ccy",
     "incorporation_country",
     "exposure_amount",
@@ -75,6 +76,7 @@ class CurrentRwaSnapshot:
     summary: dict[str, Any]
     results: pd.DataFrame
     by_entity: pd.DataFrame
+    by_sector: pd.DataFrame
     basel_stack: pd.DataFrame
     top_assets: pd.DataFrame
     errors: pd.DataFrame
@@ -226,6 +228,7 @@ def current_rwa_snapshot(as_of_date: date, row_limit: int | None = None) -> Curr
         summary=summary,
         results=results,
         by_entity=_entity_summary_frame(results),
+        by_sector=_sector_summary_frame(results),
         basel_stack=_basel_stack_frame(results),
         top_assets=_top_assets_frame(results),
         errors=pd.DataFrame(payload["errors"]),
@@ -730,6 +733,11 @@ def _calculator_results_frame(
     metadata = pd.DataFrame(source_rows)[list(CORE_METADATA_COLUMNS)]
     output = pd.DataFrame(results)
     frame = metadata.merge(output, on="id", how="inner")
+    if "sector_x" in frame.columns:
+        frame["sector"] = frame["sector_x"]
+        frame = frame.drop(
+            columns=[column for column in ("sector_x", "sector_y") if column in frame]
+        )
     _coerce_numeric_columns(frame, ("exposure_amount", "residual_maturity", "counterparty_dlgd"))
     _coerce_numeric_columns(frame, (*RWA_FIELDS, *RISK_WEIGHT_FIELDS))
     frame["rwa_density"] = _safe_ratio(frame[RWA_FINAL_FIELD], frame["exposure_amount"])
@@ -770,6 +778,27 @@ def _entity_summary_frame(results: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def _sector_summary_frame(results: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate current RWA, exposure and density by portfolio sector."""
+    if results.empty:
+        return pd.DataFrame(columns=["sector", "asset_count", "exposure_amount", RWA_FINAL_FIELD])
+    grouped = (
+        results.groupby("sector", dropna=False)
+        .agg(
+            asset_count=("id", "count"),
+            exposure_amount=("exposure_amount", "sum"),
+            basel_3_0_rwa=("basel_3_0_rwa", "sum"),
+            basel_3_1_rwa_foundation=(RWA_FOUNDATION_FIELD, "sum"),
+            basel_3_1_rwa_standardised=(RWA_STANDARDISED_FIELD, "sum"),
+            basel_3_1_rwa_final=(RWA_FINAL_FIELD, "sum"),
+        )
+        .reset_index()
+        .sort_values(RWA_FINAL_FIELD, ascending=False)
+    )
+    grouped["rwa_density"] = _safe_ratio(grouped[RWA_FINAL_FIELD], grouped["exposure_amount"])
+    return grouped
+
+
 def _basel_stack_frame(results: pd.DataFrame) -> pd.DataFrame:
     """Build a compact Basel 3.0 versus Basel 3.1 RWA comparison frame."""
     labels = {
@@ -792,6 +821,7 @@ def _top_assets_frame(results: pd.DataFrame, limit: int = 25) -> pd.DataFrame:
         "counterparty_gid",
         "entity_class",
         "sub_class",
+        "sector",
         "exposure_ccy",
         "exposure_amount",
         RWA_FINAL_FIELD,
@@ -808,9 +838,14 @@ def _projection_frame(projections: list[Any], source_rows: list[dict[str, Any]])
         return pd.DataFrame()
     frame = pd.DataFrame([row.model_dump(mode="python") for row in projections])
     metadata = pd.DataFrame(source_rows)[
-        ["id", "entity_class", "sub_class", "exposure_ccy", "counterparty_gid"]
+        ["id", "entity_class", "sub_class", "sector", "exposure_ccy", "counterparty_gid"]
     ]
     frame = frame.merge(metadata, on="id", how="left")
+    if "sector_x" in frame.columns:
+        frame["sector"] = frame["sector_x"].fillna(frame.get("sector_y"))
+        frame = frame.drop(
+            columns=[column for column in ("sector_x", "sector_y") if column in frame]
+        )
     frame["projection_date"] = pd.to_datetime(frame["projection_date"])
     _coerce_numeric_columns(frame, (*RWA_FIELDS, *RISK_WEIGHT_FIELDS))
     return frame

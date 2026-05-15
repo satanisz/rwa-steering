@@ -713,6 +713,25 @@ def render_current(snapshot) -> None:
         st.altair_chart(stack, width="stretch")
 
     st.subheader("Największe kontrybutory RWA")
+    st.subheader("RWA by sector")
+    sector_chart = (
+        alt.Chart(snapshot.by_sector)
+        .mark_bar()
+        .encode(
+            x=alt.X(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
+            y=alt.Y("sector:N", title=None, sort="-x"),
+            color=alt.Color("sector:N", legend=None),
+            tooltip=[
+                "sector",
+                "asset_count",
+                alt.Tooltip("exposure_amount:Q", format=",.0f"),
+                alt.Tooltip(f"{RWA_FINAL_FIELD}:Q", format=",.0f"),
+                alt.Tooltip("rwa_density:Q", format=".2%"),
+            ],
+        )
+    )
+    st.altair_chart(sector_chart, width="stretch")
+
     st.dataframe(format_table(snapshot.top_assets), width="stretch", hide_index=True)
 
 
@@ -834,12 +853,35 @@ def render_runoff(projection) -> None:
                 "id",
                 "entity_class",
                 "sub_class",
+                "sector",
                 alt.Tooltip("RWA:Q", format=",.0f"),
             ],
         )
     )
     st.altair_chart(asset_chart, width="stretch")
     st.dataframe(format_table(asset_frame), width="stretch", hide_index=True)
+
+    st.subheader("Run-off RWA by sector")
+    sector_frame = (
+        projection.details.groupby(["projection_date", "sector"], dropna=False)[RWA_FINAL_FIELD]
+        .sum()
+        .reset_index()
+    )
+    sector_chart = (
+        alt.Chart(sector_frame)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("projection_date:T", title="Date"),
+            y=alt.Y(f"{RWA_FINAL_FIELD}:Q", title="Basel 3.1 row-level proxy RWA"),
+            color=alt.Color("sector:N", title="Sector"),
+            tooltip=[
+                alt.Tooltip("projection_date:T", title="Date"),
+                "sector",
+                alt.Tooltip(f"{RWA_FINAL_FIELD}:Q", format=",.0f"),
+            ],
+        )
+    )
+    st.altair_chart(sector_chart, width="stretch")
 
 
 def render_forecast(forecast) -> None:

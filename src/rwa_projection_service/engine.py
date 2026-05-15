@@ -128,13 +128,14 @@ class RwaProjectionService:
         empty measures, so consumers can distinguish "matured" from "failed".
         """
         row_id = str(row.get("id") or "unknown")
+        sector = str(row.get("sector") or "UNKNOWN")
         residual_maturity = parse_optional_decimal(row.get("residual_maturity"))
         if residual_maturity is None:
-            return empty_projection(row_id, projection_date)
+            return empty_projection(row_id, projection_date, sector)
 
         projected_maturity = residual_maturity - elapsed_years(run_date, projection_date)
         if projected_maturity < Decimal("0"):
-            return zero_projection(row_id, projection_date)
+            return zero_projection(row_id, projection_date, sector)
 
         projected_row = dict(row)
         projected_row["residual_maturity"] = projected_maturity
@@ -150,12 +151,13 @@ class RwaProjectionService:
                 )
                 for error in payload["errors"]
             )
-            return empty_projection(row_id, projection_date)
+            return empty_projection(row_id, projection_date, sector)
 
         result = payload["results"][0]
         return OutputProjection(
             id=row_id,
             projection_date=projection_date,
+            sector=str(projected_row["sector"]),
             **{field: result[field] for field in PROJECTION_VALUE_FIELDS},
         )
 
@@ -182,20 +184,26 @@ def parse_optional_decimal(value: Any) -> Decimal | None:
         raise ValueError(f"residual_maturity must be decimal-compatible, got {value!r}") from exc
 
 
-def zero_projection(row_id: str, projection_date: date) -> OutputProjection:
+def zero_projection(
+    row_id: str, projection_date: date, sector: str = "UNKNOWN"
+) -> OutputProjection:
     """Build a projection row for an asset that has matured before the horizon date."""
     return OutputProjection(
         id=row_id,
         projection_date=projection_date,
+        sector=sector,
         **{field: Decimal("0") for field in PROJECTION_VALUE_FIELDS},
     )
 
 
-def empty_projection(row_id: str, projection_date: date) -> OutputProjection:
+def empty_projection(
+    row_id: str, projection_date: date, sector: str = "UNKNOWN"
+) -> OutputProjection:
     """Build a shape-preserving projection row when no valid RWA can be produced."""
     return OutputProjection(
         id=row_id,
         projection_date=projection_date,
+        sector=sector,
         **dict.fromkeys(PROJECTION_VALUE_FIELDS),
     )
 

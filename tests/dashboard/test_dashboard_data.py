@@ -23,6 +23,8 @@ def test_current_rwa_snapshot_aggregates_preprod_rows() -> None:
     assert snapshot.summary["input_data_records"] == 10
     assert snapshot.summary["output_failure_records"] == 0
     assert snapshot.summary[RWA_FINAL_FIELD] > 0
+    assert "sector" in snapshot.results.columns
+    assert not snapshot.by_sector.empty
     assert not snapshot.by_entity.empty
     assert snapshot.results[RWA_FINAL_FIELD].ge(0).all()
 
@@ -32,6 +34,7 @@ def test_runoff_projection_exposes_final_rwa_path() -> None:
 
     assert projection.selected_asset_count == 3
     assert len(projection.aggregate) == 3
+    assert "sector" in projection.details.columns
     assert RWA_FINAL_FIELD in projection.details.columns
     assert projection.aggregate[RWA_FINAL_FIELD].ge(0).all()
 

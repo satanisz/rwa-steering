@@ -11,6 +11,7 @@ from .models import (
     ENTITY_CLASSES,
     EXPOSURE_SUB_CLASSES,
     NCCR_RATING_GRADES,
+    SECTORS,
 )
 
 
@@ -37,6 +38,7 @@ CORE_INFO_SCHEMA = pa.DataFrameSchema(
         "pd_classification": pa.Column(str, nullable=False),
         "entity_class": pa.Column(str, _isin(ENTITY_CLASSES), nullable=False),
         "sub_class": pa.Column(str, _isin(EXPOSURE_SUB_CLASSES), nullable=False),
+        "sector": pa.Column(str, _isin(SECTORS), nullable=False),
         "counterparty_dlgd": pa.Column(
             float, [pa.Check.ge(0), pa.Check.le(1)], nullable=False, coerce=True
         ),

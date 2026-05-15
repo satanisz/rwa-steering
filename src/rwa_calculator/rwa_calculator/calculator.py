@@ -198,6 +198,7 @@ class RwaCalculator:
                 input_values={
                     "avc": str(record.avc),
                     "entity_class": record.entity_class,
+                    "sector": record.sector,
                     "standardised_rw": str(standardised_rw),
                     **guarantee_output,
                 },
@@ -219,6 +220,7 @@ class RwaCalculator:
         result = {
             "id": record.id,
             "counterparty_gid": record.counterparty_gid,
+            "sector": record.sector,
             "basel_3_0_pd": self._q_rate(basel_3_0_pd),
             "basel_3_1_pd": self._q_rate(basel_3_1_pd),
             "basel_3_0_dlgd": self._q_rate(basel_3_0_dlgd),
