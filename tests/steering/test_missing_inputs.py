@@ -18,6 +18,11 @@ def test_missing_inputs_generator_writes_valid_package(tmp_path) -> None:
     assert manifest.row_counts["forecast_calendar.csv"] == 6
     assert manifest.row_counts["profitability_inputs.csv"] == 1000
     assert manifest.row_counts["data_quality_flags.csv"] == 120
+    assert manifest.row_counts["capital_positions.csv"] == 1
+    assert manifest.row_counts["operational_risk_business_indicators.csv"] == 3
+    assert manifest.row_counts["operational_risk_losses.csv"] == 10
+    assert manifest.row_counts["cva_netting_sets.csv"] >= 1
+    assert manifest.row_counts["leverage_off_balance_sheet_items.csv"] >= 1
     for file_name in GENERATED_FILE_ORDER:
         assert (tmp_path / file_name).exists()
 
@@ -65,6 +70,10 @@ def test_loaded_input_package_projects_rows_from_generated_assumptions() -> None
     assert projected["counterparty_fcy_internal_rating"] != row["counterparty_fcy_internal_rating"]
     assert package.profitability_for(row["id"]) is not None
     assert package.best_reduction_constraint(row) is not None
+    assert package.capital_position_for("POC_BANKING_BOOK", package.forecast_calendar[0].as_of_date)
+    assert len(package.operational_losses_for("POC_BANKING_BOOK")) == 10
+    assert package.cva_netting_sets_for("POC_BANKING_BOOK")
+    assert package.leverage_off_balance_sheet_items_for("POC_BANKING_BOOK")
 
 
 def test_generated_open_book_projection_renews_matured_exposures() -> None:

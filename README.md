@@ -158,6 +158,8 @@ report:
 - segment growth, rating migration, DLGD and FX assumptions
 - macro regime indicators and regulatory overlay selection
 - profitability proxies, steering action constraints, strategy limits and data quality flags
+- prepared capital stack inputs: capital positions, operational BI/loss history, CVA netting
+  sets/hedges and leverage exposure components
 
 Regenerate deterministically with:
 

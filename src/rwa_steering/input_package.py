@@ -18,12 +18,20 @@ from .errors import SteeringDomainError
 from .missing_inputs import (
     DEFAULT_OUTPUT_ROOT,
     GENERATED_FILE_ORDER,
+    CapitalPosition,
+    CvaHedgeInput,
+    CvaNettingSetInput,
+    CvaPortfolioInput,
     DataQualityFlag,
     DlgdScenarioAssumption,
     ForecastCalendarRow,
     FxScenarioRate,
     GeneratedInputManifest,
+    LeverageExposureInput,
+    LeverageOffBalanceSheetItemInput,
     MacroRegimeIndicator,
+    OperationalRiskBusinessIndicatorInput,
+    OperationalRiskLossInput,
     PortfolioStrategyLimit,
     ProfitabilityInput,
     RatingMigrationRow,
@@ -72,6 +80,14 @@ class SteeringInputPackage:
     steering_action_constraints: list[SteeringActionConstraint]
     portfolio_strategy_limits: list[PortfolioStrategyLimit]
     data_quality_flags: list[DataQualityFlag]
+    capital_positions: list[CapitalPosition]
+    operational_risk_business_indicators: list[OperationalRiskBusinessIndicatorInput]
+    operational_risk_losses: list[OperationalRiskLossInput]
+    cva_portfolio_inputs: list[CvaPortfolioInput]
+    cva_netting_sets: list[CvaNettingSetInput]
+    cva_hedges: list[CvaHedgeInput]
+    leverage_exposures: list[LeverageExposureInput]
+    leverage_off_balance_sheet_items: list[LeverageOffBalanceSheetItemInput]
     _scenarios: dict[str, ScenarioDefinition] = field(init=False, repr=False)
     _macro: dict[tuple[str, date], MacroRegimeIndicator] = field(init=False, repr=False)
     _growth: dict[tuple[str, int, str, str, str], SegmentGrowthAssumption] = field(
@@ -87,6 +103,11 @@ class SteeringInputPackage:
         init=False, repr=False
     )
     _overlays: dict[str, RegulatoryOverlaySelection] = field(init=False, repr=False)
+    _capital_positions: dict[tuple[str, date], CapitalPosition] = field(init=False, repr=False)
+    _cva_portfolios: dict[tuple[str, date], CvaPortfolioInput] = field(init=False, repr=False)
+    _leverage_exposures: dict[tuple[str, date], LeverageExposureInput] = field(
+        init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         """Build immutable-ish lookup indexes after dataclass construction."""
@@ -156,6 +177,21 @@ class SteeringInputPackage:
             "_overlays",
             {row.jurisdiction_overlay: row for row in self.regulatory_overlay_selection},
         )
+        object.__setattr__(
+            self,
+            "_capital_positions",
+            {(row.portfolio_id, row.calculation_date): row for row in self.capital_positions},
+        )
+        object.__setattr__(
+            self,
+            "_cva_portfolios",
+            {(row.portfolio_id, row.calculation_date): row for row in self.cva_portfolio_inputs},
+        )
+        object.__setattr__(
+            self,
+            "_leverage_exposures",
+            {(row.portfolio_id, row.calculation_date): row for row in self.leverage_exposures},
+        )
         self.validate()
 
     @property
@@ -182,6 +218,7 @@ class SteeringInputPackage:
         self._validate_hashes()
         self._validate_references()
         self._validate_migration_totals()
+        self._validate_capital_inputs()
 
     def ensure_jurisdiction(self, jurisdiction: str) -> None:
         """Raise a structured error if a request references an unknown overlay."""
@@ -193,6 +230,81 @@ class SteeringInputPackage:
                 remediation="Use one of the overlays listed in regulatory_overlay_selection.csv.",
                 context={"available": sorted(self._overlays)},
             )
+
+    def capital_position_for(self, portfolio_id: str, calculation_date: date) -> CapitalPosition:
+        """Return prepared capital numerator inputs for a portfolio/date."""
+        return self._prepared_capital_row(
+            self._capital_positions,
+            portfolio_id,
+            calculation_date,
+            "capital_positions.csv",
+        )
+
+    def operational_business_indicators_for(
+        self, portfolio_id: str
+    ) -> list[OperationalRiskBusinessIndicatorInput]:
+        """Return prepared operational-risk BI rows for a portfolio."""
+        rows = [
+            row
+            for row in self.operational_risk_business_indicators
+            if row.portfolio_id == portfolio_id
+        ]
+        if len(rows) < 3:
+            raise self._missing_capital_input_error(
+                "operational_risk_business_indicators.csv", portfolio_id
+            )
+        return sorted(rows, key=lambda row: row.year)
+
+    def operational_losses_for(self, portfolio_id: str) -> list[OperationalRiskLossInput]:
+        """Return prepared operational loss history for a portfolio."""
+        rows = [row for row in self.operational_risk_losses if row.portfolio_id == portfolio_id]
+        if len(rows) < 10:
+            raise self._missing_capital_input_error("operational_risk_losses.csv", portfolio_id)
+        return sorted(rows, key=lambda row: row.year)
+
+    def cva_portfolio_for(self, portfolio_id: str, calculation_date: date) -> CvaPortfolioInput:
+        """Return prepared CVA portfolio-level inputs for a portfolio/date."""
+        return self._prepared_capital_row(
+            self._cva_portfolios,
+            portfolio_id,
+            calculation_date,
+            "cva_portfolio_inputs.csv",
+        )
+
+    def cva_netting_sets_for(self, portfolio_id: str) -> list[CvaNettingSetInput]:
+        """Return prepared CVA netting sets for a portfolio."""
+        rows = [row for row in self.cva_netting_sets if row.portfolio_id == portfolio_id]
+        if not rows:
+            raise self._missing_capital_input_error("cva_netting_sets.csv", portfolio_id)
+        return rows
+
+    def cva_hedges_for(self, portfolio_id: str) -> list[CvaHedgeInput]:
+        """Return prepared CVA hedges for a portfolio."""
+        return [row for row in self.cva_hedges if row.portfolio_id == portfolio_id]
+
+    def leverage_exposure_for(
+        self, portfolio_id: str, calculation_date: date
+    ) -> LeverageExposureInput:
+        """Return prepared leverage exposure components for a portfolio/date."""
+        return self._prepared_capital_row(
+            self._leverage_exposures,
+            portfolio_id,
+            calculation_date,
+            "leverage_exposures.csv",
+        )
+
+    def leverage_off_balance_sheet_items_for(
+        self, portfolio_id: str
+    ) -> list[LeverageOffBalanceSheetItemInput]:
+        """Return prepared off-balance sheet leverage rows for a portfolio."""
+        rows = [
+            row for row in self.leverage_off_balance_sheet_items if row.portfolio_id == portfolio_id
+        ]
+        if not rows:
+            raise self._missing_capital_input_error(
+                "leverage_off_balance_sheet_items.csv", portfolio_id
+            )
+        return rows
 
     def scenario_assumption(self, scenario_id: str, projection_date: date) -> ScenarioAssumption:
         """Build a scenario assumption object from generated package rows."""
@@ -489,6 +601,25 @@ class SteeringInputPackage:
                 context={"sum": str(bad[first_key])},
             )
 
+    def _validate_capital_inputs(self) -> None:
+        """Validate that prepared capital-stack input files are usable."""
+        portfolio_ids = {row.portfolio_id for row in self.capital_positions}
+        if not portfolio_ids:
+            raise self._missing_capital_input_error("capital_positions.csv", "any")
+        for portfolio_id in portfolio_ids:
+            if len(self.operational_business_indicators_for(portfolio_id)) < 3:
+                raise self._missing_capital_input_error(
+                    "operational_risk_business_indicators.csv", portfolio_id
+                )
+            if len(self.operational_losses_for(portfolio_id)) < 10:
+                raise self._missing_capital_input_error("operational_risk_losses.csv", portfolio_id)
+            if not self.cva_netting_sets_for(portfolio_id):
+                raise self._missing_capital_input_error("cva_netting_sets.csv", portfolio_id)
+            if not self.leverage_off_balance_sheet_items_for(portfolio_id):
+                raise self._missing_capital_input_error(
+                    "leverage_off_balance_sheet_items.csv", portfolio_id
+                )
+
     def _project_exposure(
         self, current_exposure: Decimal, growth: SegmentGrowthAssumption, years: Decimal
     ) -> Decimal:
@@ -509,6 +640,31 @@ class SteeringInputPackage:
             f"Generated assumption not found in {file_name}.",
             remediation="Regenerate missing inputs or add the missing segment/date/scenario row.",
             context={"file": file_name, "key": [str(item) for item in key]},
+        )
+
+    def _prepared_capital_row[T](
+        self,
+        rows: dict[tuple[str, date], T],
+        portfolio_id: str,
+        calculation_date: date,
+        file_name: str,
+    ) -> T:
+        """Return a date-specific prepared capital row or raise a structured error."""
+        key = (portfolio_id, calculation_date)
+        try:
+            return rows[key]
+        except KeyError as exc:
+            raise self._missing_capital_input_error(file_name, portfolio_id) from exc
+
+    def _missing_capital_input_error(
+        self, file_name: str, portfolio_id: str
+    ) -> SteeringDomainError:
+        """Build a structured error for missing prepared capital input data."""
+        return SteeringDomainError(
+            "MISSING_PREPARED_CAPITAL_INPUT",
+            f"Prepared capital input not found in {file_name}.",
+            remediation="Regenerate missing inputs or add the missing prepared capital row.",
+            context={"file": file_name, "portfolio_id": portfolio_id},
         )
 
 
@@ -553,6 +709,26 @@ def load_steering_input_package(
             root_path / "portfolio_strategy_limits.csv", PortfolioStrategyLimit
         ),
         data_quality_flags=read_csv_models(root_path / "data_quality_flags.csv", DataQualityFlag),
+        capital_positions=read_csv_models(root_path / "capital_positions.csv", CapitalPosition),
+        operational_risk_business_indicators=read_csv_models(
+            root_path / "operational_risk_business_indicators.csv",
+            OperationalRiskBusinessIndicatorInput,
+        ),
+        operational_risk_losses=read_csv_models(
+            root_path / "operational_risk_losses.csv", OperationalRiskLossInput
+        ),
+        cva_portfolio_inputs=read_csv_models(
+            root_path / "cva_portfolio_inputs.csv", CvaPortfolioInput
+        ),
+        cva_netting_sets=read_csv_models(root_path / "cva_netting_sets.csv", CvaNettingSetInput),
+        cva_hedges=read_csv_models(root_path / "cva_hedges.csv", CvaHedgeInput),
+        leverage_exposures=read_csv_models(
+            root_path / "leverage_exposures.csv", LeverageExposureInput
+        ),
+        leverage_off_balance_sheet_items=read_csv_models(
+            root_path / "leverage_off_balance_sheet_items.csv",
+            LeverageOffBalanceSheetItemInput,
+        ),
     )
 
 

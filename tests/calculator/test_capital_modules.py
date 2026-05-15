@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
+from rwa_calculator.paths import PREPROD_CORE_INFO_PATH
+from rwa_calculator.rwa_calculator.calculator import RwaCalculator, load_core_csv
 from rwa_calculator.rwa_calculator.capital import (
     calculate_cva_risk,
     calculate_leverage_ratio,
@@ -21,6 +23,9 @@ from rwa_calculator.rwa_calculator.capital_models import (
     OutputFloorRequest,
 )
 from rwa_calculator.rwa_calculator.fastapi_app import create_app
+from rwa_steering.input_package import load_steering_input_package
+
+CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
 
 
 def test_output_floor_uses_aggregate_pdf_example_and_phase_in() -> None:
@@ -202,3 +207,134 @@ def test_capital_fastapi_endpoints() -> None:
     assert operational.json()["operational_risk_rwa"] == "4.50"
     assert leverage.status_code == 200
     assert leverage.json()["leverage_ratio"] == "0.060000"
+
+
+def test_capital_fastapi_endpoints_accept_prepared_generated_inputs() -> None:
+    """Exercise capital endpoints using prepared generated CSV inputs only."""
+    as_of_date = date(2026, 5, 15)
+    package = load_steering_input_package()
+    client = TestClient(create_app())
+
+    cva_portfolio = package.cva_portfolio_for(CAPITAL_PORTFOLIO_ID, as_of_date)
+    cva = client.post(
+        "/v1/cva/calculate",
+        json={
+            "calculation_date": as_of_date.isoformat(),
+            "approach": cva_portfolio.approach,
+            "aggregate_non_centrally_cleared_derivative_notional": str(
+                cva_portfolio.aggregate_non_centrally_cleared_derivative_notional
+            ),
+            "ccr_capital_requirement": str(cva_portfolio.ccr_capital_requirement),
+            "materiality_option_elected": cva_portfolio.materiality_option_elected,
+            "supervisor_approved_sa_cva": cva_portfolio.supervisor_approved_sa_cva,
+            "netting_sets": [
+                {
+                    "counterparty_id": row.counterparty_id,
+                    "ead": str(row.ead),
+                    "maturity_years": str(row.maturity_years),
+                    "risk_weight": str(row.risk_weight),
+                    "discount_factor": str(row.discount_factor),
+                }
+                for row in package.cva_netting_sets_for(CAPITAL_PORTFOLIO_ID)
+            ],
+            "eligible_hedges": [
+                {
+                    "hedge_id": row.hedge_id,
+                    "effective_notional": str(row.effective_notional),
+                    "risk_weight": str(row.risk_weight),
+                    "eligible": row.eligible,
+                }
+                for row in package.cva_hedges_for(CAPITAL_PORTFOLIO_ID)
+            ],
+            "alpha": str(cva_portfolio.alpha),
+            "rho": str(cva_portfolio.rho),
+            "beta": str(cva_portfolio.beta),
+            "sa_cva_multiplier": str(cva_portfolio.sa_cva_multiplier),
+        },
+    )
+
+    operational_losses = package.operational_losses_for(CAPITAL_PORTFOLIO_ID)
+    operational = client.post(
+        "/v1/operational-risk/calculate",
+        json={
+            "calculation_date": as_of_date.isoformat(),
+            "annual_business_indicators": [
+                {
+                    "year": row.year,
+                    "interest_leases_dividend_component": str(
+                        row.interest_leases_dividend_component
+                    ),
+                    "services_component": str(row.services_component),
+                    "financial_component": str(row.financial_component),
+                }
+                for row in package.operational_business_indicators_for(CAPITAL_PORTFOLIO_ID)
+            ],
+            "annual_operational_losses": [
+                str(row.annual_operational_loss) for row in operational_losses
+            ],
+            "loss_data_quality_met": all(row.loss_data_quality_met for row in operational_losses),
+        },
+    )
+
+    capital_position = package.capital_position_for(CAPITAL_PORTFOLIO_ID, as_of_date)
+    leverage_input = package.leverage_exposure_for(CAPITAL_PORTFOLIO_ID, as_of_date)
+    leverage = client.post(
+        "/v1/leverage-ratio/calculate",
+        json={
+            "calculation_date": as_of_date.isoformat(),
+            "tier1_capital": str(capital_position.tier1_capital),
+            "on_balance_sheet_exposures": str(leverage_input.on_balance_sheet_exposures),
+            "derivative_replacement_cost": str(leverage_input.derivative_replacement_cost),
+            "derivative_potential_future_exposure": str(
+                leverage_input.derivative_potential_future_exposure
+            ),
+            "sft_gross_exposure": str(leverage_input.sft_gross_exposure),
+            "sft_netting_benefit": str(leverage_input.sft_netting_benefit),
+            "off_balance_sheet_items": [
+                {
+                    "item_id": row.item_id,
+                    "notional": str(row.notional),
+                    "credit_conversion_factor": str(row.credit_conversion_factor),
+                }
+                for row in package.leverage_off_balance_sheet_items_for(CAPITAL_PORTFOLIO_ID)
+            ],
+            "tier1_deductions_eligible_for_exposure_measure": str(
+                leverage_input.tier1_deductions_eligible_for_exposure_measure
+            ),
+            "gsib_higher_loss_absorbency_requirement": str(
+                capital_position.gsib_higher_loss_absorbency_requirement
+            ),
+        },
+    )
+
+    calculator_payload = RwaCalculator.from_files().calculate_batch(
+        load_core_csv(PREPROD_CORE_INFO_PATH)
+    )
+    credit_pre_floor = sum(
+        Decimal(str(row["basel_3_1_rwa_foundation"])) for row in calculator_payload["results"]
+    )
+    credit_standardised = sum(
+        Decimal(str(row["basel_3_1_rwa_standardised"])) for row in calculator_payload["results"]
+    )
+    portfolio = client.post(
+        "/v1/capital/portfolio",
+        json={
+            "calculation_date": as_of_date.isoformat(),
+            "credit_rwa_pre_floor": str(credit_pre_floor),
+            "credit_rwa_standardised": str(credit_standardised),
+            "cva_rwa": cva.json()["cva_rwa"],
+            "operational_rwa": operational.json()["operational_risk_rwa"],
+            "cet1_capital": str(capital_position.cet1_capital),
+            "tier1_capital": str(capital_position.tier1_capital),
+            "total_capital": str(capital_position.total_capital),
+        },
+    )
+
+    assert cva.status_code == 200
+    assert operational.status_code == 200
+    assert leverage.status_code == 200
+    assert portfolio.status_code == 200
+    portfolio_payload = portfolio.json()
+    assert Decimal(portfolio_payload["applicable_rwa"]) >= Decimal(
+        portfolio_payload["pre_floor_rwa"]
+    )

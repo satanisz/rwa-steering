@@ -1,0 +1,2 @@
+portfolio_id,calculation_date,on_balance_sheet_exposures,derivative_replacement_cost,derivative_potential_future_exposure,sft_gross_exposure,sft_netting_benefit,tier1_deductions_eligible_for_exposure_measure,source
+POC_BANKING_BOOK,2026-05-15,46571239910.38,131495443.82,525981775.29,394486331.47,138070216.01,93142479.82,prepared_preprod_capital_seed

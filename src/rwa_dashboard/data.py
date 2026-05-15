@@ -18,6 +18,7 @@ from rwa_calculator.rwa_calculator.capital import (
 )
 from rwa_calculator.rwa_calculator.capital_models import (
     BusinessIndicatorYear,
+    CvaHedge,
     CvaNettingSet,
     CvaRiskRequest,
     LeverageRatioRequest,
@@ -38,6 +39,7 @@ from rwa_steering.schemas import SteeringRequest
 RWA_FINAL_FIELD = "basel_3_1_rwa_final"
 RWA_FOUNDATION_FIELD = "basel_3_1_rwa_foundation"
 RWA_STANDARDISED_FIELD = "basel_3_1_rwa_standardised"
+CAPITAL_PORTFOLIO_ID = "POC_BANKING_BOOK"
 RWA_FIELDS = (
     "basel_3_0_rwa",
     RWA_FOUNDATION_FIELD,
@@ -524,75 +526,74 @@ def rats_optimization(
 
 def regulatory_capital_snapshot(
     as_of_date: date,
-    row_limit: int | None = None,
 ) -> RegulatoryCapitalDashboardData:
     """Calculate portfolio-level CVA, operational risk, output floor and leverage ratio.
 
-    The credit RWA inputs come from the calculator output. The current synthetic portfolio does
-    not contain bank financial statement, derivative netting-set or leverage exposure feeds, so
-    this dashboard helper derives transparent demo inputs from the pre-prod book. API clients can
-    call the underlying modules with explicit production feeds through the calculator service.
+    Credit RWA comes from the calculator output. Non-credit capital inputs are loaded from the
+    validated generated-input package, so the dashboard uses prepared CSV data rather than
+    inline constants.
     """
-    current = current_rwa_snapshot(as_of_date, row_limit=row_limit)
+    package = load_steering_input_package()
+    current = current_rwa_snapshot(as_of_date)
     results = current.results
-    total_exposure = Decimal(str(current.summary["total_exposure_amount"]))
     credit_pre_floor = Decimal(str(results[RWA_FOUNDATION_FIELD].sum()))
     credit_standardised = Decimal(str(results[RWA_STANDARDISED_FIELD].sum()))
-    derivative_ead = Decimal(
-        str(results.loc[results["entity_class"].isin(["BANK", "FI"]), "exposure_amount"].sum())
-    ) * Decimal("0.05")
+    capital_position = package.capital_position_for(CAPITAL_PORTFOLIO_ID, as_of_date)
+    cva_portfolio = package.cva_portfolio_for(CAPITAL_PORTFOLIO_ID, as_of_date)
     cva_result = calculate_cva_risk(
         CvaRiskRequest(
             calculation_date=as_of_date,
-            approach="BA_FULL",
-            aggregate_non_centrally_cleared_derivative_notional=derivative_ead * Decimal("10"),
+            approach=cva_portfolio.approach,
+            aggregate_non_centrally_cleared_derivative_notional=(
+                cva_portfolio.aggregate_non_centrally_cleared_derivative_notional
+            ),
+            ccr_capital_requirement=cva_portfolio.ccr_capital_requirement,
+            materiality_option_elected=cva_portfolio.materiality_option_elected,
+            supervisor_approved_sa_cva=cva_portfolio.supervisor_approved_sa_cva,
             netting_sets=[
                 CvaNettingSet(
-                    counterparty_id="DEMO_BANK_FI_NETTING_SETS",
-                    ead=derivative_ead,
-                    maturity_years=Decimal("2.5"),
-                    risk_weight=Decimal("0.05"),
+                    counterparty_id=row.counterparty_id,
+                    ead=row.ead,
+                    maturity_years=row.maturity_years,
+                    risk_weight=row.risk_weight,
+                    discount_factor=row.discount_factor,
                 )
+                for row in package.cva_netting_sets_for(CAPITAL_PORTFOLIO_ID)
             ],
+            eligible_hedges=[
+                CvaHedge(
+                    hedge_id=row.hedge_id,
+                    effective_notional=row.effective_notional,
+                    risk_weight=row.risk_weight,
+                    eligible=row.eligible,
+                )
+                for row in package.cva_hedges_for(CAPITAL_PORTFOLIO_ID)
+            ],
+            alpha=cva_portfolio.alpha,
+            rho=cva_portfolio.rho,
+            beta=cva_portfolio.beta,
+            sa_cva_multiplier=cva_portfolio.sa_cva_multiplier,
         )
     )
-    business_indicator = total_exposure * Decimal("0.035")
+    operational_losses = package.operational_losses_for(CAPITAL_PORTFOLIO_ID)
     operational_result = calculate_operational_risk(
         OperationalRiskRequest(
             calculation_date=as_of_date,
             annual_business_indicators=[
                 BusinessIndicatorYear(
-                    year=as_of_date.year - 2,
-                    interest_leases_dividend_component=business_indicator * Decimal("0.52"),
-                    services_component=business_indicator * Decimal("0.34"),
-                    financial_component=business_indicator * Decimal("0.14"),
-                ),
-                BusinessIndicatorYear(
-                    year=as_of_date.year - 1,
-                    interest_leases_dividend_component=business_indicator * Decimal("0.54"),
-                    services_component=business_indicator * Decimal("0.33"),
-                    financial_component=business_indicator * Decimal("0.13"),
-                ),
-                BusinessIndicatorYear(
-                    year=as_of_date.year,
-                    interest_leases_dividend_component=business_indicator * Decimal("0.51"),
-                    services_component=business_indicator * Decimal("0.35"),
-                    financial_component=business_indicator * Decimal("0.14"),
-                ),
+                    year=row.year,
+                    interest_leases_dividend_component=row.interest_leases_dividend_component,
+                    services_component=row.services_component,
+                    financial_component=row.financial_component,
+                )
+                for row in package.operational_business_indicators_for(CAPITAL_PORTFOLIO_ID)
             ],
-            annual_operational_losses=[
-                business_indicator * Decimal("0.0025"),
-                business_indicator * Decimal("0.0030"),
-                business_indicator * Decimal("0.0020"),
-            ],
+            annual_operational_losses=[row.annual_operational_loss for row in operational_losses],
+            loss_data_quality_met=all(row.loss_data_quality_met for row in operational_losses),
         )
     )
     cva_rwa = Decimal(str(cva_result.cva_rwa))
     operational_rwa = Decimal(str(operational_result.operational_risk_rwa))
-    pre_floor = credit_pre_floor + cva_rwa + operational_rwa
-    cet1_capital = pre_floor * Decimal("0.145")
-    tier1_capital = pre_floor * Decimal("0.165")
-    total_capital = pre_floor * Decimal("0.185")
     portfolio_result = calculate_portfolio_capital(
         PortfolioCapitalRequest(
             calculation_date=as_of_date,
@@ -600,25 +601,37 @@ def regulatory_capital_snapshot(
             credit_rwa_standardised=credit_standardised,
             cva_rwa=cva_rwa,
             operational_rwa=operational_rwa,
-            cet1_capital=cet1_capital,
-            tier1_capital=tier1_capital,
-            total_capital=total_capital,
+            cet1_capital=capital_position.cet1_capital,
+            tier1_capital=capital_position.tier1_capital,
+            total_capital=capital_position.total_capital,
         )
     )
+    leverage_input = package.leverage_exposure_for(CAPITAL_PORTFOLIO_ID, as_of_date)
     leverage_result = calculate_leverage_ratio(
         LeverageRatioRequest(
             calculation_date=as_of_date,
-            tier1_capital=tier1_capital,
-            on_balance_sheet_exposures=total_exposure,
-            derivative_replacement_cost=derivative_ead * Decimal("0.20"),
-            derivative_potential_future_exposure=derivative_ead * Decimal("0.80"),
+            tier1_capital=capital_position.tier1_capital,
+            on_balance_sheet_exposures=leverage_input.on_balance_sheet_exposures,
+            derivative_replacement_cost=leverage_input.derivative_replacement_cost,
+            derivative_potential_future_exposure=(
+                leverage_input.derivative_potential_future_exposure
+            ),
+            sft_gross_exposure=leverage_input.sft_gross_exposure,
+            sft_netting_benefit=leverage_input.sft_netting_benefit,
             off_balance_sheet_items=[
                 OffBalanceSheetItem(
-                    item_id="DEMO_UNDRAWN_COMMITMENTS",
-                    notional=total_exposure * Decimal("0.10"),
-                    credit_conversion_factor=Decimal("0.40"),
+                    item_id=row.item_id,
+                    notional=row.notional,
+                    credit_conversion_factor=row.credit_conversion_factor,
                 )
+                for row in package.leverage_off_balance_sheet_items_for(CAPITAL_PORTFOLIO_ID)
             ],
+            tier1_deductions_eligible_for_exposure_measure=(
+                leverage_input.tier1_deductions_eligible_for_exposure_measure
+            ),
+            gsib_higher_loss_absorbency_requirement=(
+                capital_position.gsib_higher_loss_absorbency_requirement
+            ),
         )
     )
     capital_stack = pd.DataFrame(
@@ -642,11 +655,11 @@ def regulatory_capital_snapshot(
         leverage_ratio=_capital_model_dict(leverage_result),
         methodology_notes=[
             "Credit RWA uses calculator output; output floor is aggregate and date phased.",
-            "Operational, CVA and leverage dashboard inputs are transparent demo assumptions.",
             (
-                "Production use should replace demo assumptions with finance, derivatives "
-                "and leverage feeds."
+                "Operational, CVA, leverage and capital numerator inputs are loaded from "
+                "prepared generated CSV files."
             ),
+            "Prepared capital inputs are hash-validated by the generated input manifest.",
         ],
     )
 

@@ -23,6 +23,14 @@
     "steering_action_constraints.csv",
     "portfolio_strategy_limits.csv",
     "data_quality_flags.csv",
+    "capital_positions.csv",
+    "operational_risk_business_indicators.csv",
+    "operational_risk_losses.csv",
+    "cva_portfolio_inputs.csv",
+    "cva_netting_sets.csv",
+    "cva_hedges.csv",
+    "leverage_exposures.csv",
+    "leverage_off_balance_sheet_items.csv",
     "README.md",
     "validation_report.json"
   ],
@@ -38,7 +46,15 @@
     "profitability_inputs.csv": 1000,
     "steering_action_constraints.csv": 210,
     "portfolio_strategy_limits.csv": 280,
-    "data_quality_flags.csv": 120
+    "data_quality_flags.csv": 120,
+    "capital_positions.csv": 1,
+    "operational_risk_business_indicators.csv": 3,
+    "operational_risk_losses.csv": 10,
+    "cva_portfolio_inputs.csv": 1,
+    "cva_netting_sets.csv": 12,
+    "cva_hedges.csv": 3,
+    "leverage_exposures.csv": 1,
+    "leverage_off_balance_sheet_items.csv": 3
   },
   "file_sha256": {
     "scenario_definitions.csv": "78162a736689df0c8a59353c27bd51dc2aa0ed6a8316bd3ff0e9823851dc16e0",
@@ -53,14 +69,22 @@
     "steering_action_constraints.csv": "ab6214e3b12d09a9613825034aad9e883fc13d67c3471a6637b9f05e6dea69c3",
     "portfolio_strategy_limits.csv": "fe38e55f66a7a4b6d596704aebfda3a96792f7e2d38c565deaadec6173540a49",
     "data_quality_flags.csv": "a4011aeed620b81d2d97cfdf7716b78867fbf83cfd72729a34e75ac49ee51ad5",
-    "README.md": "279a18ddfcd96a803cdad0465b1af8d35f8df40756febab9692d2d6618b63ef8",
-    "validation_report.json": "59b72d593d268b61ad63a15eeed4325d6740c2cbea012fb039a5bda34dff518d"
+    "capital_positions.csv": "367cf3b1502f4b9294df208a3324082c3af89d0f324934cc82f8356716b6d174",
+    "operational_risk_business_indicators.csv": "2fdf7a75bc5378110653228a338945679509b58e0be4371f0cf0519aeba7fce0",
+    "operational_risk_losses.csv": "e794f0580dec57140707ec92257c306c4fe73c94da8792f0e3db2e7082ef6f56",
+    "cva_portfolio_inputs.csv": "4664010d36607ab97d04c6cd4029abbcae4ac3e870d38808f93fb2772c10037c",
+    "cva_netting_sets.csv": "68ec5072b12b80a8ab0a8a59e898bff0054383580348a5f82a696d76ef22a9fa",
+    "cva_hedges.csv": "5b958368584d0b2171610ba2f03becafb4c85fc27d1eec9647207bed1fa478c4",
+    "leverage_exposures.csv": "d56564edd2e98a905e431f380025e8f7ecf0d4fd4c0288dce80be636a82a8c29",
+    "leverage_off_balance_sheet_items.csv": "8e2d064584ede39342d361e4eb1b8e63a9abe9f3df4dc2e52848bae56e768156",
+    "README.md": "4efe4812e0ccf670ad238b76f7805ee10b80faf8278d2cafa4026780aa5542a0",
+    "validation_report.json": "2bc68883119fe5c7c25d401a7b7cc4b30b0f4371e04014510b5839312e8e868c"
   },
   "validation_status": "PASSED",
   "known_limitations": [
-    "Synthetic hackathon seed, not production customer or market data.",
-    "FX rates and macro regimes are deterministic scenario assumptions.",
-    "Profitability inputs are proxy values and require finance-system replacement.",
-    "Rating migration matrices are simple auditable assumptions, not calibrated models."
+    "Generated pre-production seed, not production customer or market data.",
+    "FX rates and macro regimes are deterministic prepared scenario inputs.",
+    "Profitability and capital-management values are prepared generated inputs and require finance-system replacement before production.",
+    "Rating migration matrices are auditable generated assumptions, not calibrated models."
   ]
 }

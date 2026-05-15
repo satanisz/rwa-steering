@@ -8,7 +8,11 @@
     "projection_dates_consistent",
     "rating_migration_probabilities_sum_to_one",
     "fx_rates_positive",
-    "asset_references_consistent"
+    "asset_references_consistent",
+    "capital_inputs_present",
+    "operational_loss_history_present",
+    "cva_netting_sets_present",
+    "leverage_components_present"
   ],
   "row_counts": {
     "scenario_definitions.csv": 4,
@@ -22,6 +26,14 @@
     "profitability_inputs.csv": 1000,
     "steering_action_constraints.csv": 210,
     "portfolio_strategy_limits.csv": 280,
-    "data_quality_flags.csv": 120
+    "data_quality_flags.csv": 120,
+    "capital_positions.csv": 1,
+    "operational_risk_business_indicators.csv": 3,
+    "operational_risk_losses.csv": 10,
+    "cva_portfolio_inputs.csv": 1,
+    "cva_netting_sets.csv": 12,
+    "cva_hedges.csv": 3,
+    "leverage_exposures.csv": 1,
+    "leverage_off_balance_sheet_items.csv": 3
   }
 }
