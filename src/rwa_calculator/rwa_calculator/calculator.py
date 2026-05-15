@@ -370,7 +370,7 @@ class RwaCalculator:
         return sovereign_external_rw(country.country_external_rating)
 
     def _build_projection(self, result: dict[str, Any], projection_date: str) -> dict[str, Any]:
-        """Build the calculator's legacy one-date projection record from a result row."""
+        """Build the calculator's compatibility one-date projection record from a result row."""
         fields = {
             key: result[key]
             for key in OUTPUT_SUCCESS_COLUMNS

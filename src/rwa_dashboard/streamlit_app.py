@@ -29,6 +29,7 @@ RWA_LABELS = {
     RWA_FINAL_FIELD: "Basel 3.1 row-level proxy",
 }
 MODEL_RUNOFF = "Run-off f(x,t)"
+LEGACY_METHODOLOGY_LABEL = MODEL_RUNOFF
 MODEL_SCENARIO_FORECAST = "Forecast scenarios"
 MODEL_FORECAST = "Forecast Monte Carlo"
 MODEL_STEERING = "Scenario steering"
@@ -42,14 +43,16 @@ STEERING_MODEL_OPTIONS = (
 )
 SCENARIO_OPTIONS = ("BASE", "DOWNSIDE", "STRESS", "RECOVERY")
 FORECAST_ENGINE_OPTIONS = ("VAR", "LSTM_PROXY")
-CALCULATOR_MATURITY_LABEL = "Proxy/legacy calculator"
+CALCULATOR_MATURITY_LABEL = "Proxy calculator"
 CALCULATOR_POSITIONING_NOTE = (
-    "Methodology scope: proxy/legacy calculator and steering control tower; "
-    "not a full regulatory-grade RWA engine."
+    "Methodology scope: proxy calculator and steering control tower; on this branch, "
+    "legacy scope is limited to Run-off f(x,t), not a full regulatory-grade RWA engine."
 )
 CALCULATOR_POSITIONING_DETAILS = (
     "Uses prepared pre-prod input data, generated scenario assumptions and deterministic "
     "calculator outputs for decision support.",
+    "Legacy methodology on legacy_prep is Run-off f(x,t) only; forecast, steering and RATS "
+    "remain PoC decision-support methods.",
     "Does not replace bank-approved regulatory reporting, model validation, jurisdictional "
     "rule interpretation or supervisory sign-off.",
 )
@@ -211,6 +214,7 @@ def render_selected_model(selected_model: str, as_of_date: date, scenario_id: st
     """Run and render exactly one selected steering model."""
     st.subheader(selected_model)
     if selected_model == MODEL_RUNOFF:
+        st.info("Legacy methodology on this branch: Run-off f(x,t) only.")
         projected_months = st.slider("Horyzont run-off w miesiącach", 1, 24, 24)
         assets = st.slider("Aktywa w run-off", 10, 300, 100, 10)
         with st.spinner("Liczenie run-off obecnego portfela..."):

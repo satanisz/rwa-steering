@@ -3,7 +3,7 @@
 Python `src/` layout repository for Basel III RWA proxy calculation, projection and steering
 services:
 
-- `src/rwa_calculator` - proxy/legacy RWA calculator backend, exposed as `rwa-calculator`.
+- `src/rwa_calculator` - proxy RWA calculator backend, exposed as `rwa-calculator`.
 - `src/rwa_forecast_service` - VAR/LSTM-proxy forecast and Monte Carlo trajectory service.
 - `src/rwa_projection_service` - projection service using `rwa_calculator` as `f(x, t)`.
 - `src/rwa_steering` - regime-aware steering service with generated scenario inputs,
@@ -12,10 +12,12 @@ services:
 - `src/rwa_dashboard` - Streamlit control tower over the calculator, projection and steering
   services.
 
-Methodology positioning: this is a proxy/legacy calculator and decision-support control tower,
-not a full regulatory-grade RWA engine. It uses prepared pre-prod inputs, generated scenario
-assumptions and deterministic calculator outputs; it does not replace bank-approved regulatory
-reporting, model validation, jurisdictional rule interpretation or supervisory sign-off.
+Methodology positioning: this is a proxy calculator and decision-support control tower, not a full
+regulatory-grade RWA engine. On the `legacy_prep` branch, legacy methodology means only
+`Run-off f(x,t)`. Forecast, steering and RATS remain PoC decision-support methods. The app uses
+prepared pre-prod inputs, generated scenario assumptions and deterministic calculator outputs; it
+does not replace bank-approved regulatory reporting, model validation, jurisdictional rule
+interpretation or supervisory sign-off.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
 `pytest` for tests, `ruff` for linting/formatting, and coverage/security tooling suitable for
@@ -25,7 +27,7 @@ enterprise CI.
 
 ```text
 preprod CoreInfo / CountryInfo / NCCR mapping
-  -> rwa_calculator proxy/legacy calculator
+  -> rwa_calculator proxy calculator
   -> rwa_projection_service for f(x, t) monthly projections
   -> rwa_steering generated_inputs package
   -> scenario projection, attribution, recommendations
@@ -69,10 +71,12 @@ http://127.0.0.1:8501
 ```
 
 The Streamlit dashboard exposes the calculator maturity scope, a single steering model switch for
-the PoC model families and a separate regulatory capital stack panel:
+the PoC model families and a separate regulatory capital stack panel. On `legacy_prep`, only
+`Run-off f(x,t)` is labelled as the legacy methodology:
 
 - current row-level credit RWA proxy plus aggregate applicable RWA
-- `Run-off f(x,t)` for the existing book using monthly maturity roll-forward
+- `Run-off f(x,t)` for the existing book using monthly maturity roll-forward; this is the only
+  legacy methodology on this branch
 - `Forecast scenarios` for all generated BASE / DOWNSIDE / STRESS / RECOVERY cases
 - `Forecast Monte Carlo` using the VAR / `LSTM_PROXY` forecast service
 - `Scenario steering` for generated-input projections, attribution and recommendations
@@ -114,7 +118,7 @@ POST http://127.0.0.1:8000/v1/leverage-ratio/calculate
 POST http://127.0.0.1:8000/v1/capital/portfolio
 ```
 
-The legacy `POST /steering/run` route is still available for compatibility during the PoC.
+The unversioned compatibility `POST /steering/run` route is still available during the PoC.
 Calculator and projection services follow the same pattern: `/v1/rwa/calculate` and
 `/v1/projections/calculate` are the versioned contracts, while the older unversioned routes
 remain available during transition.
@@ -191,10 +195,11 @@ Current automated gates:
 
 ## Production Caveats
 
-The calculator, generated inputs and regulatory overlays are clearly labelled as proxy/legacy,
-synthetic or seed reference data. Outputs must not be presented as final regulatory returns or as a
-full regulatory-grade RWA engine. Before production use, the methodology, reference data,
-jurisdiction overlays, rating migrations, profitability proxies and steering recommendations must
-be reconciled with approved bank policy, binding legal text and model-risk governance.
+The calculator, generated inputs and regulatory overlays are clearly labelled as proxy, synthetic
+or seed reference data. On `legacy_prep`, legacy methodology is limited to `Run-off f(x,t)`.
+Outputs must not be presented as final regulatory returns or as a full regulatory-grade RWA engine.
+Before production use, the methodology, reference data, jurisdiction overlays, rating migrations,
+profitability proxies and steering recommendations must be reconciled with approved bank policy,
+binding legal text and model-risk governance.
 
 Legacy project READMEs are preserved in `docs_bob_README.md` and `docs_codex_README.md`.
