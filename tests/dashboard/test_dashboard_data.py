@@ -14,7 +14,12 @@ from rwa_dashboard.data import (
     runoff_projection,
     steering_simulation,
 )
-from rwa_dashboard.streamlit_app import STEERING_MODEL_OPTIONS
+from rwa_dashboard.streamlit_app import (
+    CALCULATOR_MATURITY_LABEL,
+    CALCULATOR_POSITIONING_DETAILS,
+    CALCULATOR_POSITIONING_NOTE,
+    STEERING_MODEL_OPTIONS,
+)
 
 
 def test_current_rwa_snapshot_aggregates_preprod_rows() -> None:
@@ -124,6 +129,14 @@ def test_dashboard_frontend_exposes_all_steering_model_options() -> None:
         "Forecast Monte Carlo",
         "Scenario steering",
         "RATS optimizer",
+    )
+
+
+def test_dashboard_frontend_labels_calculator_maturity_scope() -> None:
+    assert CALCULATOR_MATURITY_LABEL == "Proxy/legacy calculator"
+    assert "not a full regulatory-grade RWA engine" in CALCULATOR_POSITIONING_NOTE
+    assert any(
+        "prepared pre-prod input data" in detail for detail in CALCULATOR_POSITIONING_DETAILS
     )
 
 

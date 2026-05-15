@@ -1,14 +1,21 @@
 # RWA Steering
 
-Python `src/` layout repository for Basel III RWA calculation, projection and steering services:
+Python `src/` layout repository for Basel III RWA proxy calculation, projection and steering
+services:
 
-- `src/rwa_calculator` - RWA calculator backend, exposed as `rwa-calculator`.
+- `src/rwa_calculator` - proxy/legacy RWA calculator backend, exposed as `rwa-calculator`.
 - `src/rwa_forecast_service` - VAR/LSTM-proxy forecast and Monte Carlo trajectory service.
 - `src/rwa_projection_service` - projection service using `rwa_calculator` as `f(x, t)`.
 - `src/rwa_steering` - regime-aware steering service with generated scenario inputs,
   attribution and recommendations.
 - `src/rwa_rats_service` - Risk-Aware Trading Swarm optimization service for forecasted RWA.
-- `src/rwa_dashboard` - Streamlit dashboard over the calculator, projection and steering services.
+- `src/rwa_dashboard` - Streamlit control tower over the calculator, projection and steering
+  services.
+
+Methodology positioning: this is a proxy/legacy calculator and decision-support control tower,
+not a full regulatory-grade RWA engine. It uses prepared pre-prod inputs, generated scenario
+assumptions and deterministic calculator outputs; it does not replace bank-approved regulatory
+reporting, model validation, jurisdictional rule interpretation or supervisory sign-off.
 
 The repository uses a modern `src/` layout, `uv` for environment and lockfile management,
 `pytest` for tests, `ruff` for linting/formatting, and coverage/security tooling suitable for
@@ -18,7 +25,7 @@ enterprise CI.
 
 ```text
 preprod CoreInfo / CountryInfo / NCCR mapping
-  -> rwa_calculator
+  -> rwa_calculator proxy/legacy calculator
   -> rwa_projection_service for f(x, t) monthly projections
   -> rwa_steering generated_inputs package
   -> scenario projection, attribution, recommendations
@@ -61,8 +68,8 @@ Dashboard:
 http://127.0.0.1:8501
 ```
 
-The Streamlit dashboard exposes a single steering model switch for the PoC model families and a
-separate regulatory capital stack panel:
+The Streamlit dashboard exposes the calculator maturity scope, a single steering model switch for
+the PoC model families and a separate regulatory capital stack panel:
 
 - current row-level credit RWA proxy plus aggregate applicable RWA
 - `Run-off f(x,t)` for the existing book using monthly maturity roll-forward
@@ -184,9 +191,10 @@ Current automated gates:
 
 ## Production Caveats
 
-The calculator, generated inputs and regulatory overlays are clearly labelled as synthetic or seed
-reference data. Before production use, the methodology, reference data, jurisdiction overlays,
-rating migrations, profitability proxies and steering recommendations must be reconciled with
-approved bank policy, binding legal text and model-risk governance.
+The calculator, generated inputs and regulatory overlays are clearly labelled as proxy/legacy,
+synthetic or seed reference data. Outputs must not be presented as final regulatory returns or as a
+full regulatory-grade RWA engine. Before production use, the methodology, reference data,
+jurisdiction overlays, rating migrations, profitability proxies and steering recommendations must
+be reconciled with approved bank policy, binding legal text and model-risk governance.
 
 Legacy project READMEs are preserved in `docs_bob_README.md` and `docs_codex_README.md`.

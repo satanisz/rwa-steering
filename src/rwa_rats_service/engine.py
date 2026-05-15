@@ -93,7 +93,7 @@ class RwaRATSService:
     RATS is implemented here as a deterministic, bounded Particle Swarm Optimization loop. The
     algorithm searches over strategy legs consisting of UEI index plus reduction notional. Every
     candidate strategy is applied to forecasted calculator inputs and then revalued through
-    ``rwa_calculator`` so the optimized RWA remains tied to the regulatory calculation engine.
+    ``rwa_calculator`` so the optimized RWA remains tied to the same proxy/legacy calculator path.
     """
 
     def __init__(

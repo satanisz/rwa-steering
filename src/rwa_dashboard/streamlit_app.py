@@ -42,6 +42,17 @@ STEERING_MODEL_OPTIONS = (
 )
 SCENARIO_OPTIONS = ("BASE", "DOWNSIDE", "STRESS", "RECOVERY")
 FORECAST_ENGINE_OPTIONS = ("VAR", "LSTM_PROXY")
+CALCULATOR_MATURITY_LABEL = "Proxy/legacy calculator"
+CALCULATOR_POSITIONING_NOTE = (
+    "Methodology scope: proxy/legacy calculator and steering control tower; "
+    "not a full regulatory-grade RWA engine."
+)
+CALCULATOR_POSITIONING_DETAILS = (
+    "Uses prepared pre-prod input data, generated scenario assumptions and deterministic "
+    "calculator outputs for decision support.",
+    "Does not replace bank-approved regulatory reporting, model validation, jurisdictional "
+    "rule interpretation or supervisory sign-off.",
+)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -151,7 +162,8 @@ def main() -> None:
     snapshot = cached_current(as_of_date)
 
     st.title("RWA Steering Dashboard")
-    st.caption(f"Dane syntetyczne pre-prod, as-of {as_of_date.isoformat()}")
+    st.caption(f"{CALCULATOR_MATURITY_LABEL}, as-of {as_of_date.isoformat()}")
+    render_calculator_positioning()
 
     tab_current, tab_model, tab_data = st.tabs(["RWA dzisiaj", "Steering model", "Dane i jakość"])
 
@@ -164,6 +176,14 @@ def main() -> None:
 
     with tab_data:
         render_input_package(cached_input_package())
+
+
+def render_calculator_positioning() -> None:
+    """Render the explicit methodology-scope warning requested for stakeholder alignment."""
+    st.warning(CALCULATOR_POSITIONING_NOTE)
+    with st.expander("Methodology scope and limitations", expanded=False):
+        for detail in CALCULATOR_POSITIONING_DETAILS:
+            st.markdown(f"- {detail}")
 
 
 def model_selector() -> str:

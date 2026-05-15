@@ -288,7 +288,7 @@ def forecast_projection(
     This is the dashboard's primary forecast path. For each selected scenario and forecast date
     it creates projected calculator inputs with generated growth, runoff, rating migration, DLGD
     and FX assumptions. The projected inputs are then passed back through ``rwa_calculator`` so
-    the resulting RWA is still produced by the regulatory calculation engine.
+    the resulting RWA remains tied to the same proxy/legacy calculator path.
     """
     package = load_steering_input_package()
     projection_dates = _generated_projection_dates(package, as_of_date, include_as_of=False)
