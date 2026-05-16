@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import html
 from datetime import date
+from typing import Any
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-from rwa_agent_service import BriefingRequest, RwaAgentService
+from rwa_agent_service import BriefingRequest, MultiAgentRwaAnalysisRequest, RwaAgentService
 from rwa_agent_service.tools import AgentRuntimeContext
 from rwa_dashboard.data import (
     RWA_FINAL_FIELD,
@@ -32,6 +34,7 @@ RWA_LABELS = {
     RWA_STANDARDISED_FIELD: "Basel 3.1 standardised",
     RWA_FINAL_FIELD: "Basel 3.1 final",
 }
+RWA_FINAL_RISK_WEIGHT_FIELD = "basel_3_1_rw_final"
 MODEL_RUNOFF = "Run-off f(x,t)"
 MODEL_SCENARIO_FORECAST = "Forecast scenarios"
 MODEL_FORECAST = "Forecast Monte Carlo"
@@ -347,6 +350,69 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 .agent-status.reserved {
     background: #eef4ff;
     color: #0b5cff;
+}
+
+.ai-commentary-shell {
+    border: 1px solid var(--tower-border);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 0.95rem;
+    box-shadow: 0 10px 24px rgba(8, 25, 56, 0.04);
+}
+
+.ai-commentary-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+}
+
+.ai-commentary-title h4 {
+    margin: 0;
+    color: var(--tower-text);
+    font-size: 1rem;
+}
+
+.ai-commentary-copy {
+    color: #192943;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    margin: 0.2rem 0 0.75rem;
+}
+
+.ai-commentary-meta {
+    color: var(--tower-muted);
+    font-size: 0.78rem;
+    margin-top: 0.7rem;
+}
+
+.commentary-checklist {
+    display: grid;
+    gap: 0.42rem;
+    margin-top: 0.45rem;
+}
+
+.commentary-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.48rem;
+    color: #1c2d48;
+    font-size: 0.84rem;
+}
+
+.commentary-checkmark {
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    border-radius: 999px;
+    background: #eaf8ef;
+    color: #087433;
+    display: inline-grid;
+    place-items: center;
+    font-size: 0.68rem;
+    font-weight: 800;
+    margin-top: 0.12rem;
 }
 
 .evidence-strip {
@@ -1515,6 +1581,210 @@ def render_steering(steering) -> None:
     st.dataframe(format_table(steering.recommendations), width="stretch", hide_index=True)
 
 
+def render_ai_executive_commentary(snapshot, as_of_date: date, runs):
+    """Render the AI Executive Commentary component backed by the LangGraph workflow."""
+    state_key = f"ai_commentary::{as_of_date.isoformat()}::{runs.scenario_id}"
+    if state_key not in st.session_state:
+        with st.spinner("Generating AI executive commentary..."):
+            st.session_state[state_key] = generate_ai_commentary_state(
+                snapshot,
+                as_of_date,
+                runs.scenario_id,
+            )
+
+    header, action = st.columns([0.72, 0.28])
+    header.markdown(
+        """
+        <div class="ai-commentary-title">
+            <h4>AI Executive Commentary</h4>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if action.button("Regenerate", key=f"{state_key}::regenerate"):
+        with st.spinner("Regenerating AI executive commentary..."):
+            st.session_state[state_key] = generate_ai_commentary_state(
+                snapshot,
+                as_of_date,
+                runs.scenario_id,
+            )
+
+    commentary_state = st.session_state.get(state_key, {})
+    error = commentary_state.get("error")
+    if error:
+        st.error("AI Executive Commentary is unavailable. No substitute commentary was displayed.")
+        st.caption(str(error))
+        return None
+
+    response = commentary_state.get("response")
+    if response is None:
+        st.info("AI Executive Commentary is not available for the selected inputs.")
+        return None
+    if response.status == "BLOCKED":
+        st.warning("AI Executive Commentary was blocked by guardrail policy and is unavailable.")
+        st.caption(
+            f"Guardrail blocks: {response.observability.guardrail_block_count}; "
+            f"source {response.final_commentary.source_label}."
+        )
+        return response
+
+    commentary = response.final_commentary
+    executive_tab, cro_tab, cfo_tab = st.tabs(["Executive Summary", "CRO View", "CFO View"])
+    with executive_tab:
+        render_commentary_view(
+            narrative=commentary.executive_summary,
+            observations=[
+                *commentary.data_quality_observations,
+                *commentary.quantitative_validation,
+            ],
+            actions=commentary.recommended_actions,
+            generated_at=commentary.generated_at,
+            source_label=commentary.source_label,
+        )
+    with cro_tab:
+        render_commentary_view(
+            narrative=commentary.cro_view,
+            observations=[*commentary.risk_observations, *commentary.quantitative_validation],
+            actions=commentary.recommended_actions,
+            generated_at=commentary.generated_at,
+            source_label=commentary.source_label,
+        )
+    with cfo_tab:
+        render_commentary_view(
+            narrative=commentary.cfo_view,
+            observations=commentary.quantitative_validation,
+            actions=commentary.recommended_actions,
+            generated_at=commentary.generated_at,
+            source_label=commentary.source_label,
+        )
+    st.caption(
+        f"Workflow {response.graph_backend}; checkpointer "
+        f"{response.observability.checkpointer}; source {commentary.source_label}."
+    )
+    return response
+
+
+def generate_ai_commentary_state(snapshot, as_of_date: date, scenario_id: str) -> dict[str, Any]:
+    """Generate commentary state for Streamlit, preserving unavailable/error outcomes."""
+    try:
+        request = build_rwa_commentary_request(
+            snapshot,
+            request_id=f"dashboard-{as_of_date.isoformat()}-{scenario_id}",
+            scenario_id=scenario_id,
+        )
+        return {
+            "response": asyncio.run(RwaAgentService().run_multi_agent_analysis(request)),
+            "error": None,
+        }
+    except Exception as exc:
+        return {"response": None, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def build_rwa_commentary_request(
+    snapshot,
+    *,
+    request_id: str,
+    scenario_id: str,
+) -> MultiAgentRwaAnalysisRequest:
+    """Build an anonymized RWA commentary request from calculator output rows."""
+    input_data: list[dict[str, Any]] = []
+    output_results: list[dict[str, Any]] = []
+    for row in snapshot.results.to_dict(orient="records"):
+        asset_id = str(row["id"])
+        exposure_amount = decimal_text(row.get("exposure_amount"), default="0")
+        risk_weight = decimal_text(row.get(RWA_FINAL_RISK_WEIGHT_FIELD))
+        input_data.append(
+            {
+                "asset_id": asset_id,
+                "asset_class": text_or_default(row.get("entity_class"), "Unclassified"),
+                "sector": text_or_default(row.get("sector"), "Unclassified"),
+                "exposure_amount": exposure_amount,
+                "risk_weight": risk_weight,
+                "rating": text_or_none(row.get("counterparty_credit_quality_grade")),
+                "validation_status": "PASSED",
+                "pd": decimal_text(row.get("basel_3_1_pd")),
+                "lgd": decimal_text(row.get("basel_3_1_dlgd")),
+                "maturity_years": decimal_text(row.get("residual_maturity")),
+            }
+        )
+        output_results.append(
+            {
+                "asset_id": asset_id,
+                "rwa_amount": decimal_text(row.get(RWA_FINAL_FIELD), default="0"),
+                "exposure_amount": exposure_amount,
+                "risk_weight": risk_weight,
+                "sector": text_or_default(row.get("sector"), "Unclassified"),
+                "rating": text_or_none(row.get("counterparty_credit_quality_grade")),
+                "risk_class": text_or_default(row.get("entity_class"), "Unclassified"),
+                "approach": "Basel 3.1 final",
+            }
+        )
+    return MultiAgentRwaAnalysisRequest(
+        request_id=request_id,
+        rwa_input_data=input_data,
+        rwa_output_results=output_results,
+        loop_limit=3,
+    )
+
+
+def render_commentary_view(
+    *,
+    narrative: str,
+    observations: list[str],
+    actions: list[str],
+    generated_at,
+    source_label: str,
+) -> None:
+    """Render one tab of the AI Executive Commentary component."""
+    observation_items = "".join(f"<li>{html.escape(item)}</li>" for item in observations if item)
+    checklist = "".join(
+        (
+            '<div class="commentary-check">'
+            '<span class="commentary-checkmark">&#10003;</span>'
+            f"<span>{html.escape(action)}</span>"
+            "</div>"
+        )
+        for action in actions
+    )
+    generated_label = generated_at.strftime("%Y-%m-%d %H:%M:%S %Z")
+    st.markdown(
+        f"""
+        <div class="ai-commentary-shell">
+            <p class="ai-commentary-copy">{html.escape(narrative)}</p>
+            <p><strong>Supporting observations</strong></p>
+            <ul>{observation_items or "<li>No open observations for this view.</li>"}</ul>
+            <p><strong>Recommended actions</strong></p>
+            <div class="commentary-checklist">
+                {checklist or '<div class="commentary-check">No recommended actions.</div>'}
+            </div>
+            <div class="ai-commentary-meta">
+                Generated {html.escape(generated_label)} by {html.escape(source_label)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def decimal_text(value: object, *, default: str | None = None) -> str | None:
+    """Return a string decimal for Pydantic request validation."""
+    if value is None or pd.isna(value):
+        return default
+    return str(value)
+
+
+def text_or_none(value: object) -> str | None:
+    """Return sanitized optional text for anonymized commentary input."""
+    if value is None or pd.isna(value):
+        return None
+    return str(value)
+
+
+def text_or_default(value: object, default: str) -> str:
+    """Return sanitized text with a stable default."""
+    return text_or_none(value) or default
+
+
 def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -> None:
     """Render the agent-ready management briefing workspace from calculated data."""
     agent_context = AgentRuntimeContext(
@@ -1525,21 +1795,13 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -
         overview=overview,
         runs=runs,
     )
-    try:
-        agent_response = RwaAgentService().run_from_context(
-            BriefingRequest(
-                as_of_date=as_of_date,
-                scenario_id=runs.scenario_id,
-            ),
-            agent_context,
-        )
-    except Exception as exc:
-        st.error(
-            "Live agent commentary is unavailable. No deterministic or templated "
-            "commentary was substituted."
-        )
-        st.caption(f"Ollama/Gemma error: {type(exc).__name__}: {exc}")
-        return
+    evidence_response = RwaAgentService().evidence_from_context(
+        BriefingRequest(
+            as_of_date=as_of_date,
+            scenario_id=runs.scenario_id,
+        ),
+        agent_context,
+    )
     output_floor = capital.output_floor
     quality_summary = overview.data_quality_summary.copy()
     blocking_issues = (
@@ -1596,49 +1858,25 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -
         st.dataframe(format_table(entity_frame), width="stretch", hide_index=True)
 
     with right:
-        st.subheader("Agent workspace")
-        st.markdown(
-            agent_slot_cards(snapshot, capital, overview, runs, agent_response),
-            unsafe_allow_html=True,
-        )
-        st.subheader("Capital briefing context")
-        st.dataframe(format_table(capital.capital_stack), width="stretch", hide_index=True)
+        analysis_response = render_ai_executive_commentary(snapshot, as_of_date, runs)
 
     lower_left, lower_right = st.columns([1, 1.08])
     with lower_left:
         st.subheader("Data quality findings")
         st.dataframe(format_table(quality_summary), width="stretch", hide_index=True)
     with lower_right:
-        st.subheader("Board commentary")
-        commentary = agent_response.board_commentary
-        key_messages = "".join(
-            f"<li>{html.escape(message)}</li>" for message in commentary.key_messages
-        )
-        watchlist = "".join(f"<li>{html.escape(item)}</li>" for item in commentary.risk_watchlist)
+        st.subheader("Agent workspace")
         st.markdown(
-            f"""
-            <div class="briefing-card">
-                <h4>Board Commentary Agent</h4>
-                <p>{html.escape(commentary.executive_summary)}</p>
-                <p><strong>Key messages</strong></p>
-                <ul>{key_messages}</ul>
-                <p><strong>Risk watchlist</strong></p>
-                <ul>{watchlist}</ul>
-                <span class="agent-status">Completed</span>
-            </div>
-            """,
+            agent_slot_cards(snapshot, capital, overview, runs, analysis_response),
             unsafe_allow_html=True,
         )
-        st.caption(
-            f"Trace {agent_response.observability.trace_id}; "
-            f"LLM provider {agent_response.observability.llm_provider}; "
-            f"RAG backend {agent_response.observability.rag_backend}."
-        )
+        st.subheader("Capital briefing context")
+        st.dataframe(format_table(capital.capital_stack), width="stretch", hide_index=True)
 
     st.subheader("Evidence & traceability")
     st.markdown(evidence_trace_strip(snapshot, capital, overview, runs), unsafe_allow_html=True)
     evidence_frame = pd.DataFrame(
-        [item.model_dump(mode="python") for item in agent_response.evidence_inventory]
+        [item.model_dump(mode="python") for item in evidence_response.evidence_inventory]
     )
     st.dataframe(
         format_table(evidence_frame),
@@ -1651,7 +1889,23 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -
 
 def agent_slot_cards(snapshot, capital, overview, runs, agent_response=None) -> str:
     """Return HTML cards for the agent registry slots."""
-    if agent_response is not None:
+    if agent_response is not None and hasattr(agent_response, "messages"):
+        latest_messages = {}
+        for message in agent_response.messages:
+            latest_messages[message.agent_name] = message
+        cards = [
+            (
+                '<div class="agent-card">'
+                f"<h4>{html.escape(str(agent_name))}</h4>"
+                f"<p>{html.escape(message.content)}</p>"
+                f'<span class="agent-status">Completed</span>'
+                "</div>"
+            )
+            for agent_name, message in latest_messages.items()
+        ]
+        return f'<div class="agent-grid">{"".join(cards)}</div>'
+
+    if agent_response is not None and hasattr(agent_response, "agent_results"):
         cards = [
             (
                 '<div class="agent-card">'

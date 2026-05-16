@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from rwa_steering.errors import SteeringDomainError
 
+from .discussion_schemas import MultiAgentRwaAnalysisRequest, MultiAgentRwaAnalysisResponse
 from .schemas import (
     ApiErrorDetail,
     ApiErrorResponse,
@@ -68,6 +69,22 @@ def create_app() -> FastAPI:
     def run_evidence(request: BriefingRequest) -> EvidenceResponse:
         """Build the evidence inventory from prepared dashboard data."""
         return app.state.service.evidence(request)
+
+    @app.post(
+        "/v1/agents/rwa-analysis/run",
+        response_model=MultiAgentRwaAnalysisResponse,
+        tags=["agents"],
+    )
+    @app.post(
+        "/agents/rwa-analysis/run",
+        response_model=MultiAgentRwaAnalysisResponse,
+        tags=["agents"],
+    )
+    async def run_multi_agent_analysis(
+        request: MultiAgentRwaAnalysisRequest,
+    ) -> MultiAgentRwaAnalysisResponse:
+        """Run the multi-agent RWA analysis discussion graph."""
+        return await app.state.service.run_multi_agent_analysis(request)
 
     return app
 

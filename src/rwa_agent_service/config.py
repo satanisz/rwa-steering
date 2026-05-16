@@ -21,6 +21,9 @@ class AgentServiceSettings(BaseSettings):
     rag_backend: Literal["in_memory", "weaviate"] = "in_memory"
     weaviate_url: str | None = None
     langfuse_enabled: bool = False
+    langfuse_prompt_label: str | None = "production"
+    langfuse_prompt_cache_ttl_seconds: int = Field(default=300, ge=0)
+    langfuse_prompt_fetch_timeout_seconds: int = Field(default=5, ge=1)
     langsmith_enabled: bool = False
     memory_scope: Literal["disabled", "request"] = "disabled"
 

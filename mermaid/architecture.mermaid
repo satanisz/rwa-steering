@@ -1,0 +1,149 @@
+```mermaid
+flowchart LR
+    subgraph UI["Streamlit UI - AI Executive Commentary"]
+        U1["Prepared dashboard data<br/>calculated RWA rows only"]
+        U2["build_rwa_commentary_request()<br/>structured anonymized request"]
+        U3["AI Executive Commentary component"]
+        U4["Tabs<br/>Executive Summary / CRO View / CFO View"]
+        U5["Recommended actions checklist"]
+        U6["Generated timestamp + source label"]
+        U7["Regenerate button"]
+        U8["Loading / Empty / Error / Blocked states"]
+    end
+
+    subgraph API["RWA Agent Service"]
+        A1["/v1/agents/rwa-analysis/run"]
+        A2["MultiAgentRwaAnalysisRequest"]
+        A3["RwaAgentService.run_multi_agent_analysis()"]
+        A4["MultiAgentRwaDiscussionGraph.arun()"]
+    end
+
+    subgraph STATE["Pydantic v2 AgentState"]
+        S1["rwa_input_data"]
+        S2["rwa_output_results"]
+        S3["messages"]
+        S4["validation_flags"]
+        S5["agent_findings"]
+        S6["recommended_actions"]
+        S7["commentary_views"]
+        S8["guardrail_results"]
+        S9["loop_count / loop_limit"]
+        S10["consensus_reached"]
+        S11["next_agent"]
+        S12["final_commentary"]
+    end
+
+    subgraph GUARD["LLM Guard Pipeline"]
+        L1["Input scan<br/>prompt injection / PII / secrets / toxicity"]
+        L2{"Blocked above threshold?"}
+        L3["Output scan<br/>PII / secrets / toxicity / relevance"]
+        L4["Safe blocked response<br/>no partial commentary rendered"]
+    end
+
+    subgraph GRAPH["LangGraph Supervisor + ReAct Workers"]
+        G1["SupervisorAgent<br/>route / consensus / loop limit / final synthesis"]
+        R{"next_agent"}
+        G2["DataAnalystAgent ReAct worker<br/>inspect state / select tool / observe / finding"]
+        G3["RiskExpertAgent ReAct worker<br/>inspect state / select tool / observe / finding"]
+        G4{"Consensus reached<br/>or loop limit hit?"}
+    end
+
+    subgraph TOOLS["Deterministic Python Tools"]
+        T1["summarize_portfolio_structure"]
+        T2["detect_portfolio_input_anomalies<br/>missing ratings / failed validations / PD LGD EAD anomalies"]
+        T3["concentration_flags"]
+        T4["validate_rwa_formula_deterministically"]
+        T5["summarize_rwa_movement_drivers<br/>sector / rating migration / risk class"]
+    end
+
+    subgraph OBS["Langfuse + Checkpointing"]
+        O1["Langfuse CallbackHandler<br/>attached to graph config"]
+        O2["Prompt Registry get_prompt()"]
+        O3["Prompt usage metadata<br/>name / version / label"]
+        O4["Node transitions<br/>selected agent / loop / status"]
+        O5["Tool call observations"]
+        O6["Guardrail scan observations"]
+        O7["Evaluation scores<br/>Faithfulness / Groundedness / Anomaly_Detection / Guardrail_Block_Count / PII_Detected / Prompt_Injection_Risk"]
+        O8["MemorySaver checkpointer<br/>thread_id = request_id"]
+    end
+
+    subgraph OUTPUT["Structured Agent Output"]
+        P1["MultiAgentRwaAnalysisResponse"]
+        P2["final_commentary"]
+        P3["commentary_views"]
+        P4["agent_findings"]
+        P5["recommended_actions"]
+        P6["validation_flags"]
+        P7["observability"]
+        P8["status<br/>COMPLETED / LOOP_LIMIT_REACHED / BLOCKED"]
+    end
+
+    U1 --> U2
+    U7 --> U2
+    U2 --> A1
+    A1 --> A2
+    A2 --> A3
+    A3 --> A4
+    A4 --> STATE
+
+    STATE --> G1
+    G1 --> L1
+    L1 --> L2
+    L2 -->|yes| L4
+    L4 --> P1
+    L2 -->|no| R
+
+    R -->|DataAnalystAgent| G2
+    G2 --> T1
+    G2 --> T2
+    G2 --> T3
+    T1 --> S5
+    T2 --> S4
+    T3 --> S5
+    G2 --> L3
+    L3 --> G1
+
+    R -->|RiskExpertAgent| G3
+    G3 --> T4
+    G3 --> T5
+    T4 --> S4
+    T5 --> S5
+    G3 --> L3
+    L3 --> G1
+
+    R -->|END| G4
+    G4 --> S12
+    S12 --> P1
+
+    O1 -.-> A4
+    O2 -.-> G1
+    O2 -.-> G2
+    O2 -.-> G3
+    G1 -.-> O4
+    G2 -.-> O4
+    G3 -.-> O4
+    T1 -.-> O5
+    T2 -.-> O5
+    T3 -.-> O5
+    T4 -.-> O5
+    T5 -.-> O5
+    L1 -.-> O6
+    L3 -.-> O6
+    A4 -.-> O8
+    P1 -.-> O7
+
+    P1 --> P2
+    P1 --> P3
+    P1 --> P4
+    P1 --> P5
+    P1 --> P6
+    P1 --> P7
+    P1 --> P8
+
+    P3 --> U3
+    P5 --> U3
+    P8 --> U8
+    U3 --> U4
+    U3 --> U5
+    U3 --> U6
+```

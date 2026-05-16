@@ -1,9 +1,21 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import uuid4
 
 from .config import AgentServiceSettings, load_settings
+from .discussion import MultiAgentRwaDiscussionGraph
+from .discussion_schemas import (
+    AgentState,
+    MultiAgentObservability,
+    MultiAgentRwaAnalysisRequest,
+    MultiAgentRwaAnalysisResponse,
+)
 from .graph import AgentGraphState, RwaAgentGraph
+from .langfuse_integration import (
+    LangfuseWorkflowTelemetry,
+    create_prompt_registry,
+)
 from .llm import create_language_model
 from .memory import RequestMemory
 from .rag import create_retriever
@@ -30,9 +42,11 @@ class RwaAgentService:
         *,
         settings: AgentServiceSettings | None = None,
         graph: RwaAgentGraph | None = None,
+        discussion_graph: MultiAgentRwaDiscussionGraph | None = None,
     ) -> None:
         self.settings = settings or load_settings()
         self.graph = graph or RwaAgentGraph()
+        self.discussion_graph = discussion_graph or MultiAgentRwaDiscussionGraph()
 
     def run(self, request: BriefingRequest) -> BriefingResponse:
         """Calculate dashboard artifacts from prepared data and run the agent graph."""
@@ -153,6 +167,62 @@ class RwaAgentService:
             agent_results=request.agent_results,
             metric_facts=request.metric_facts,
             limitations=[],
+        )
+
+    async def run_multi_agent_analysis(
+        self,
+        request: MultiAgentRwaAnalysisRequest,
+    ) -> MultiAgentRwaAnalysisResponse:
+        """Run the async LangGraph RWA discussion workflow."""
+        telemetry = LangfuseWorkflowTelemetry.from_settings(self.settings)
+        prompt_registry = create_prompt_registry(self.settings)
+        final_state = await self.discussion_graph.arun(
+            AgentState.from_request(request),
+            prompt_registry=prompt_registry,
+            telemetry=telemetry,
+        )
+        if final_state.final_commentary is None:
+            raise RuntimeError("Multi-agent graph completed without final commentary.")
+        return MultiAgentRwaAnalysisResponse(
+            service_version=AGENT_SERVICE_VERSION,
+            request_id=request.request_id,
+            run_id=request.request_id or uuid4().hex,
+            status=final_state.final_commentary.status,
+            graph_backend=self.discussion_graph.backend_name,
+            final_commentary=final_state.final_commentary,
+            messages=final_state.messages,
+            validation_flags=final_state.validation_flags,
+            agent_findings=final_state.agent_findings,
+            recommended_actions=final_state.recommended_actions,
+            commentary_views=final_state.commentary_views,
+            observability=MultiAgentObservability(
+                langfuse_enabled=telemetry.enabled,
+                trace_id=telemetry.trace_id,
+                callback_handler_attached=telemetry.callback_handler_attached,
+                checkpointer=self.discussion_graph.checkpointer_name,
+                prompt_usages=telemetry.prompt_usages,
+                evaluation_scores=telemetry.evaluation_scores,
+                guardrail_results=telemetry.guardrail_results,
+                guardrail_block_count=sum(
+                    1 for result in telemetry.guardrail_results if result.action == "blocked"
+                ),
+                pii_detected=any(
+                    result.scanner_name == "PII" and result.action != "passed"
+                    for result in telemetry.guardrail_results
+                ),
+                prompt_injection_risk=max(
+                    (
+                        result.risk_score
+                        for result in telemetry.guardrail_results
+                        if result.scanner_name == "PromptInjection"
+                    ),
+                    default=Decimal("0"),
+                ),
+                node_transition_count=telemetry.node_transition_count,
+                llm_call_count=telemetry.llm_call_count,
+                tool_call_count=telemetry.tool_call_count,
+                total_token_count=telemetry.total_token_count,
+            ),
         )
 
     def health(self) -> dict[str, str | bool]:

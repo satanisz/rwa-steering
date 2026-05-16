@@ -1,0 +1,23 @@
+```mermaid
+stateDiagram-v2
+    [*] --> SupervisorAgent
+
+    SupervisorAgent --> GuardrailBlocked: guardrail_blocked == true
+    SupervisorAgent --> DataAnalystAgent: no data finding yet
+    SupervisorAgent --> RiskExpertAgent: data finding exists and no risk finding yet
+    SupervisorAgent --> DataAnalystAgent: critical flags remain and loop_count < loop_limit
+    SupervisorAgent --> Completed: consensus_reached == true
+    SupervisorAgent --> LoopLimitReached: loop_count >= loop_limit
+
+    DataAnalystAgent --> DataTools: inspect state and select action
+    DataTools --> DataAnalystAgent: observe portfolio/anomaly/concentration results
+    DataAnalystAgent --> SupervisorAgent: append structured finding and actions
+
+    RiskExpertAgent --> RiskTools: inspect state and select action
+    RiskTools --> RiskExpertAgent: observe formula and movement-driver results
+    RiskExpertAgent --> SupervisorAgent: append structured finding and actions
+
+    GuardrailBlocked --> [*]: status BLOCKED
+    Completed --> [*]: status COMPLETED
+    LoopLimitReached --> [*]: status LOOP_LIMIT_REACHED
+```

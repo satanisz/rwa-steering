@@ -13,7 +13,10 @@ authors = [{ name = "RWA Steering Team" }]
 dependencies = [
     "fastapi>=0.115,<1.0",
     "httpx>=0.28,<1.0",
+    "langchain>=0.3,<0.4",
+    "langfuse>=3.0,<5.0",
     "langgraph>=0.2,<1.0",
+    "llm-guard>=0.3,<0.4 ; python_full_version < '3.14'",
     "pandas>=2.2,<3.0",
     "pandera>=0.22,<1.0",
     "pydantic>=2.10,<3.0",
