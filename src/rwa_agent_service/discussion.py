@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import warnings
 from contextlib import nullcontext
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, cast
 from uuid import uuid4
 
 from .discussion_schemas import (
@@ -40,7 +41,7 @@ class _DiscussionRuntimeState(TypedDict):
     state: AgentState
 
 
-RouteDecision = Literal["data_analyst", "risk_expert", "end"]
+RouteDecision = Literal["analysis_phase", "end"]
 
 _ACTIVE_PROMPT_REGISTRY: ContextVar[PromptRegistry | None] = ContextVar(
     "active_rwa_prompt_registry",
@@ -57,7 +58,7 @@ _ACTIVE_GUARD: ContextVar[RwaLlmGuard | None] = ContextVar(
 
 
 class MultiAgentRwaDiscussionGraph:
-    """Supervisor + ReAct worker LangGraph workflow for RWA commentary."""
+    """Compact Supervisor + parallel ReAct worker LangGraph workflow."""
 
     def __init__(self) -> None:
         self.checkpointer_name = "MemorySaver"
@@ -72,7 +73,7 @@ class MultiAgentRwaDiscussionGraph:
         telemetry: LangfuseWorkflowTelemetry | None = None,
         guard: RwaLlmGuard | None = None,
     ) -> AgentState:
-        """Execute the guarded Supervisor + ReAct graph."""
+        """Execute the guarded compact Supervisor + ReAct graph."""
         runtime_prompts = prompt_registry or LocalPromptRegistry()
         runtime_telemetry = telemetry or LangfuseWorkflowTelemetry.disabled()
         runtime_guard = guard or create_guard()
@@ -80,6 +81,7 @@ class MultiAgentRwaDiscussionGraph:
         telemetry_token = _ACTIVE_TELEMETRY.set(runtime_telemetry)
         guard_token = _ACTIVE_GUARD.set(runtime_guard)
         thread_id = state.request_id or uuid4().hex
+        runtime_telemetry.thread_id = thread_id
         try:
             with runtime_telemetry.workflow_context(
                 name="rwa-commentary-workflow",
@@ -118,30 +120,44 @@ class MultiAgentRwaDiscussionGraph:
                     from langgraph.graph import END, StateGraph
 
                     graph = StateGraph(_DiscussionRuntimeState)
+                    graph.add_node("analysis_phase", cast(Any, analysis_phase))
                     graph.add_node(
                         "supervisor",
                         _wrap_async_node(supervisor_agent, "SupervisorAgent"),
                     )
-                    graph.add_node(
-                        "data_analyst",
-                        _wrap_async_node(data_analyst_agent, "DataAnalystAgent"),
-                    )
-                    graph.add_node(
-                        "risk_expert",
-                        _wrap_async_node(risk_expert_agent, "RiskExpertAgent"),
-                    )
-                    graph.set_entry_point("supervisor")
+                    graph.set_entry_point("analysis_phase")
+                    graph.add_edge("analysis_phase", "supervisor")
                     graph.add_conditional_edges(
                         "supervisor",
                         _route_after_supervisor,
-                        {"data_analyst": "data_analyst", "risk_expert": "risk_expert", "end": END},
+                        {"analysis_phase": "analysis_phase", "end": END},
                     )
-                    graph.add_edge("data_analyst", "supervisor")
-                    graph.add_edge("risk_expert", "supervisor")
                     return graph.compile(checkpointer=MemorySaver())
         except Exception:
             self.checkpointer_name = "local_in_memory"
             return None
+
+
+async def analysis_phase(runtime_state: _DiscussionRuntimeState) -> _DiscussionRuntimeState:
+    """Run independent worker agents in parallel and merge safe structured findings."""
+    state = runtime_state["state"]
+    if state.guardrail_blocked:
+        return {"state": state}
+
+    state.loop_count += 1
+    before = _state_counts(state)
+    data_state = state.model_copy(deep=True)
+    risk_state = state.model_copy(deep=True)
+    data_result, risk_result = await asyncio.gather(
+        _run_guarded_agent(data_state, data_analyst_agent, "DataAnalystAgent"),
+        _run_guarded_agent(risk_state, risk_expert_agent, "RiskExpertAgent"),
+    )
+    _merge_worker_state(state, data_result, before)
+    _merge_worker_state(state, risk_result, before)
+    if state.guardrail_blocked:
+        state.next_agent = "END"
+        state.final_commentary = _build_blocked_payload(state)
+    return {"state": state}
 
 
 async def supervisor_agent(
@@ -156,22 +172,19 @@ async def supervisor_agent(
         state.final_commentary = _build_blocked_payload(state)
         return state
 
-    data_findings = _findings_for(state, "DataAnalystAgent")
-    risk_findings = _findings_for(state, "RiskExpertAgent")
-    completed_cycles = min(len(data_findings), len(risk_findings))
-    state.loop_count = max(state.loop_count, completed_cycles)
-
-    if not data_findings:
+    required_findings_present = bool(_findings_for(state, "DataAnalystAgent")) and bool(
+        _findings_for(state, "RiskExpertAgent")
+    )
+    if not required_findings_present and state.loop_count < state.loop_limit:
         state.next_agent = "DataAnalystAgent"
-        _append_supervisor_message(state, "Routing to DataAnalystAgent for input review.")
-        return state
-    if len(risk_findings) < len(data_findings):
-        state.next_agent = "RiskExpertAgent"
-        _append_supervisor_message(state, "Routing to RiskExpertAgent for RWA interpretation.")
+        _append_supervisor_message(
+            state,
+            "Required worker findings are missing; requesting another parallel analysis round.",
+        )
         return state
 
     critical_flags = [flag for flag in state.validation_flags if flag.severity == "CRITICAL"]
-    state.consensus_reached = not critical_flags
+    state.consensus_reached = required_findings_present and not critical_flags
     if state.consensus_reached or state.loop_count >= state.loop_limit:
         state.next_agent = "END"
         final_status = "COMPLETED" if state.consensus_reached else "LOOP_LIMIT_REACHED"
@@ -187,7 +200,7 @@ async def supervisor_agent(
     state.next_agent = "DataAnalystAgent"
     _append_supervisor_message(
         state,
-        "Critical flags remain; requesting another DataAnalystAgent and RiskExpertAgent pass.",
+        "Critical flags remain; requesting one more parallel worker analysis round.",
     )
     return state
 
@@ -344,57 +357,82 @@ def _route_after_supervisor(runtime_state: _DiscussionRuntimeState) -> RouteDeci
     state = runtime_state["state"]
     if state.guardrail_blocked or state.next_agent == "END":
         return "end"
-    if state.next_agent == "RiskExpertAgent":
-        return "risk_expert"
-    return "data_analyst"
+    return "analysis_phase"
 
 
 def _wrap_async_node(node: Any, agent_name: DiscussionAgentName) -> Any:
     async def wrapped(runtime_state: _DiscussionRuntimeState) -> _DiscussionRuntimeState:
-        state = runtime_state["state"]
-        prompt_registry = _ACTIVE_PROMPT_REGISTRY.get() or LocalPromptRegistry()
-        telemetry = _ACTIVE_TELEMETRY.get() or LangfuseWorkflowTelemetry.disabled()
-        guard = _ACTIVE_GUARD.get() or create_guard()
-        prompt = prompt_registry.get_system_prompt(agent_name)
-        telemetry.record_prompt_usage(prompt)
-
-        input_decision = guard.scan_input(
-            _agent_input_text(state, prompt.content), agent_name=agent_name
-        )
-        _record_guardrail_results(state, telemetry, input_decision.results)
-        if input_decision.blocked:
-            _mark_guardrail_blocked(state, agent_name, input_decision.results)
-            return {"state": state}
-
-        before = _state_counts(state)
-        with telemetry.node_context(node_name=agent_name, state=state, prompt=prompt):
-            state = await node(state, system_prompt=input_decision.sanitized_text)
-
-        output_decision = guard.scan_output(_new_output_text(state, before), agent_name=agent_name)
-        _record_guardrail_results(state, telemetry, output_decision.results)
-        if output_decision.blocked:
-            _rollback_state(state, before)
-            _mark_guardrail_blocked(state, agent_name, output_decision.results)
-        return {"state": state}
+        return {
+            "state": await _run_guarded_agent(runtime_state["state"], node, agent_name),
+        }
 
     return wrapped
 
 
 async def _run_local_graph(state: AgentState) -> AgentState:
+    state = (await analysis_phase({"state": state}))["state"]
     state = (await _wrap_async_node(supervisor_agent, "SupervisorAgent")({"state": state}))["state"]
     while _route_after_supervisor({"state": state}) != "end":
-        if state.next_agent == "RiskExpertAgent":
-            state = (
-                await _wrap_async_node(risk_expert_agent, "RiskExpertAgent")({"state": state})
-            )["state"]
-        else:
-            state = (
-                await _wrap_async_node(data_analyst_agent, "DataAnalystAgent")({"state": state})
-            )["state"]
+        state = (await analysis_phase({"state": state}))["state"]
         state = (await _wrap_async_node(supervisor_agent, "SupervisorAgent")({"state": state}))[
             "state"
         ]
     return state
+
+
+async def _run_guarded_agent(
+    state: AgentState,
+    node: Any,
+    agent_name: DiscussionAgentName,
+) -> AgentState:
+    if state.guardrail_blocked:
+        if agent_name == "SupervisorAgent":
+            return await node(state, system_prompt=None)
+        return state
+
+    prompt_registry = _ACTIVE_PROMPT_REGISTRY.get() or LocalPromptRegistry()
+    telemetry = _ACTIVE_TELEMETRY.get() or LangfuseWorkflowTelemetry.disabled()
+    guard = _ACTIVE_GUARD.get() or create_guard()
+    prompt = prompt_registry.get_system_prompt(agent_name)
+    telemetry.record_prompt_usage(prompt)
+
+    input_decision = guard.scan_input(
+        _agent_input_text(state, prompt.content),
+        agent_name=agent_name,
+    )
+    _record_guardrail_results(state, telemetry, input_decision.results)
+    if input_decision.blocked:
+        _mark_guardrail_blocked(state, agent_name, input_decision.results)
+        return state
+
+    before = _state_counts(state)
+    with telemetry.node_context(node_name=agent_name, state=state, prompt=prompt):
+        state = await node(state, system_prompt=input_decision.sanitized_text)
+
+    output_decision = guard.scan_output(_new_output_text(state, before), agent_name=agent_name)
+    _record_guardrail_results(state, telemetry, output_decision.results)
+    if output_decision.blocked:
+        _rollback_state(state, before)
+        _mark_guardrail_blocked(state, agent_name, output_decision.results)
+    return state
+
+
+def _merge_worker_state(
+    target: AgentState,
+    worker_state: AgentState,
+    before: tuple[int, int, int, int, int],
+) -> None:
+    message_count, flag_count, finding_count, action_count, guardrail_count = before
+    target.messages.extend(worker_state.messages[message_count:])
+    _append_unique_flags(target, worker_state.validation_flags[flag_count:])
+    target.agent_findings.extend(worker_state.agent_findings[finding_count:])
+    _extend_unique(target.recommended_actions, worker_state.recommended_actions[action_count:])
+    target.guardrail_results.extend(worker_state.guardrail_results[guardrail_count:])
+    if worker_state.guardrail_blocked:
+        target.guardrail_blocked = True
+        target.next_agent = "END"
+        target.consensus_reached = False
+        target.final_commentary = worker_state.final_commentary
 
 
 def _append_supervisor_message(state: AgentState, content: str) -> None:
@@ -607,24 +645,49 @@ def _extend_unique(target: list[str], values: list[str]) -> None:
 
 
 def _agent_input_text(state: AgentState, system_prompt: str) -> str:
-    portfolio_terms = " ".join(
-        f"{record.asset_id} {record.asset_class} {record.sector or ''} {record.rating or ''}"
-        for record in state.rwa_input_data[:25]
+    portfolio_summary = summarize_portfolio_structure(
+        state.rwa_input_data,
+        state.rwa_output_results,
     )
+    movement_summary = summarize_rwa_movement_drivers(
+        state.rwa_input_data,
+        state.rwa_output_results,
+    )
+    asset_classes = ", ".join(sorted({record.asset_class for record in state.rwa_input_data})[:10])
+    sectors = ", ".join(
+        sorted({record.sector for record in state.rwa_input_data if record.sector})[:10]
+    )
+    ratings = ", ".join(
+        sorted({record.rating for record in state.rwa_input_data if record.rating})[:10]
+    )
+    finding_summaries = " | ".join(finding.summary for finding in state.agent_findings[-3:])
+    flag_codes = ",".join(flag.code for flag in state.validation_flags[-25:])
     return "\n".join(
         [
             system_prompt,
             f"request_id={state.request_id}",
-            f"portfolio_terms={portfolio_terms}",
+            f"input_record_count={portfolio_summary['input_record_count']}",
+            f"output_record_count={portfolio_summary['output_record_count']}",
+            f"total_exposure={portfolio_summary['total_exposure']}",
+            f"total_rwa={portfolio_summary['total_rwa']}",
+            f"rwa_density={portfolio_summary['rwa_density']}",
+            f"largest_asset_class={portfolio_summary['largest_asset_class']}",
+            f"largest_sector={portfolio_summary['largest_sector']}",
+            f"asset_classes={asset_classes}",
+            f"sectors={sectors}",
+            f"ratings={ratings}",
+            f"movement_total_delta={movement_summary['total_rwa_delta']}",
+            f"movement_top_sector={movement_summary['top_movement_sector']}",
             f"messages={len(state.messages)}",
-            f"validation_flags={','.join(flag.code for flag in state.validation_flags)}",
+            f"validation_flags={flag_codes}",
             f"findings={len(state.agent_findings)}",
+            f"finding_summaries={finding_summaries}",
         ]
     )
 
 
-def _new_output_text(state: AgentState, before: tuple[int, int, int, int]) -> str:
-    message_count, flag_count, finding_count, action_count = before
+def _new_output_text(state: AgentState, before: tuple[int, int, int, int, int]) -> str:
+    message_count, flag_count, finding_count, action_count, _guardrail_count = before
     new_messages = [message.content for message in state.messages[message_count:]]
     new_flags = [flag.message for flag in state.validation_flags[flag_count:]]
     new_findings = [finding.summary for finding in state.agent_findings[finding_count:]]
@@ -632,17 +695,18 @@ def _new_output_text(state: AgentState, before: tuple[int, int, int, int]) -> st
     return "\n".join([*new_messages, *new_flags, *new_findings, *new_actions])
 
 
-def _state_counts(state: AgentState) -> tuple[int, int, int, int]:
+def _state_counts(state: AgentState) -> tuple[int, int, int, int, int]:
     return (
         len(state.messages),
         len(state.validation_flags),
         len(state.agent_findings),
         len(state.recommended_actions),
+        len(state.guardrail_results),
     )
 
 
-def _rollback_state(state: AgentState, before: tuple[int, int, int, int]) -> None:
-    message_count, flag_count, finding_count, action_count = before
+def _rollback_state(state: AgentState, before: tuple[int, int, int, int, int]) -> None:
+    message_count, flag_count, finding_count, action_count, _guardrail_count = before
     del state.messages[message_count:]
     del state.validation_flags[flag_count:]
     del state.agent_findings[finding_count:]

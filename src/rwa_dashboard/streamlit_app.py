@@ -1723,7 +1723,7 @@ def build_rwa_commentary_request(
         request_id=request_id,
         rwa_input_data=input_data,
         rwa_output_results=output_results,
-        loop_limit=3,
+        loop_limit=2,
     )
 
 

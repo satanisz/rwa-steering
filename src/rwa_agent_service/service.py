@@ -174,10 +174,14 @@ class RwaAgentService:
         request: MultiAgentRwaAnalysisRequest,
     ) -> MultiAgentRwaAnalysisResponse:
         """Run the async LangGraph RWA discussion workflow."""
+        run_id = request.request_id or uuid4().hex
         telemetry = LangfuseWorkflowTelemetry.from_settings(self.settings)
         prompt_registry = create_prompt_registry(self.settings)
+        initial_state = AgentState.from_request(request)
+        if initial_state.request_id is None:
+            initial_state.request_id = run_id
         final_state = await self.discussion_graph.arun(
-            AgentState.from_request(request),
+            initial_state,
             prompt_registry=prompt_registry,
             telemetry=telemetry,
         )
@@ -186,7 +190,7 @@ class RwaAgentService:
         return MultiAgentRwaAnalysisResponse(
             service_version=AGENT_SERVICE_VERSION,
             request_id=request.request_id,
-            run_id=request.request_id or uuid4().hex,
+            run_id=run_id,
             status=final_state.final_commentary.status,
             graph_backend=self.discussion_graph.backend_name,
             final_commentary=final_state.final_commentary,
@@ -198,6 +202,7 @@ class RwaAgentService:
             observability=MultiAgentObservability(
                 langfuse_enabled=telemetry.enabled,
                 trace_id=telemetry.trace_id,
+                thread_id=telemetry.thread_id,
                 callback_handler_attached=telemetry.callback_handler_attached,
                 checkpointer=self.discussion_graph.checkpointer_name,
                 prompt_usages=telemetry.prompt_usages,

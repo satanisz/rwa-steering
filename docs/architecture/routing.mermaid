@@ -2,37 +2,25 @@ stateDiagram-v2
     [*] --> RequestValidation
     RequestValidation --> Rejected: invalid schema or unsafe PII-like input
     RequestValidation --> AgentStateBuilt: valid anonymized request
-    AgentStateBuilt --> SupervisorInputGuard
 
-    SupervisorInputGuard --> GuardrailBlocked: blocked input
-    SupervisorInputGuard --> SupervisorAgent: allowed input
-    SupervisorAgent --> SupervisorOutputGuard
-    SupervisorOutputGuard --> GuardrailBlocked: unsafe output
-    SupervisorOutputGuard --> DataAnalystInputGuard: route DataAnalystAgent
-    SupervisorOutputGuard --> RiskExpertInputGuard: route RiskExpertAgent
-    SupervisorOutputGuard --> Completed: consensus reached
-    SupervisorOutputGuard --> LoopLimitReached: loop_count >= loop_limit
+    AgentStateBuilt --> AnalysisPhase
+    AnalysisPhase --> DataAnalystAgent: fan-out
+    AnalysisPhase --> RiskExpertAgent: fan-out
 
-    DataAnalystInputGuard --> GuardrailBlocked: blocked input
-    DataAnalystInputGuard --> DataInspectState: allowed input
-    DataInspectState --> DataSelectTool
-    DataSelectTool --> DataExecuteTool
-    DataExecuteTool --> DataObserveResult
-    DataObserveResult --> DataOutputGuard
-    DataOutputGuard --> GuardrailBlocked: unsafe output
-    DataOutputGuard --> SupervisorAgent: structured data finding persisted
+    DataAnalystAgent --> DataTools: internal ReAct tool use
+    DataTools --> AnalysisFanIn: structured data finding
+    RiskExpertAgent --> RiskTools: internal ReAct tool use
+    RiskTools --> AnalysisFanIn: structured risk finding
 
-    RiskExpertInputGuard --> GuardrailBlocked: blocked input
-    RiskExpertInputGuard --> RiskInspectState: allowed input
-    RiskInspectState --> RiskSelectTool
-    RiskSelectTool --> RiskExecuteTool
-    RiskExecuteTool --> RiskObserveResult
-    RiskObserveResult --> RiskOutputGuard
-    RiskOutputGuard --> GuardrailBlocked: unsafe output
-    RiskOutputGuard --> SupervisorAgent: structured risk finding persisted
+    AnalysisFanIn --> SupervisorAgent
+    SupervisorAgent --> AnalysisPhase: missing findings or critical flags and loop_count < 2
+    SupervisorAgent --> FinalOutputGuard: consensus reached
+    SupervisorAgent --> FinalOutputGuard: loop limit reached
+    SupervisorAgent --> GuardrailBlocked: blocked agent output
+
+    FinalOutputGuard --> GuardrailBlocked: unsafe final output
+    FinalOutputGuard --> FinalStructuredResponse: safe final output
 
     GuardrailBlocked --> FinalStructuredResponse: status BLOCKED
-    Completed --> FinalStructuredResponse: status COMPLETED
-    LoopLimitReached --> FinalStructuredResponse: status LOOP_LIMIT_REACHED
     Rejected --> [*]
     FinalStructuredResponse --> [*]

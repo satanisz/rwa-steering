@@ -18,113 +18,72 @@ flowchart LR
         S6["recommended_actions"]
         S7["commentary_views"]
         S8["guardrail_results"]
-        S9["loop_count / loop_limit"]
+        S9["loop_count / loop_limit = 2"]
         S10["consensus_reached"]
-        S11["next_agent"]
-        S12["final_commentary"]
+        S11["final_commentary"]
     end
 
-    subgraph GRAPH["LangGraph Runtime - Supervisor + ReAct Workers"]
-        subgraph SUPERVISOR["SupervisorAgent - Routing Brain"]
-            SG1["LLM Guard Input Scan"]
-            SG2["Supervisor LLM Call<br/>route / consensus / loop-limit / synthesis"]
-            SG3["LLM Guard Output Scan"]
-            SG4{"Safe supervisor output?"}
-            ROUTE{"Route Decision"}
-        end
+    subgraph GRAPH["Compact LangGraph Runtime"]
+        A["AnalysisPhase node<br/>fan-out / fan-in"]
+        SUP["SupervisorAgent node<br/>merge / consensus / loop limit / synthesis"]
+        ROUTE{"Route"}
+        FOG["Final Output Guard"]
+        END["FinalStructuredResponse"]
+    end
 
-        subgraph DATA["DataAnalystAgent - ReAct Worker"]
-            D1["Inspect State"]
-            DG1["LLM Guard Input Scan"]
-            D2["Agent LLM Call<br/>select data action/tool"]
-            DG2["LLM Guard Output Scan"]
-            DG3{"Safe action?"}
-            D3["Execute Data Tool"]
-            D4["Observe Tool Result"]
-            DG4["LLM Guard Input Scan"]
-            D5["Agent LLM Call<br/>emit structured data finding"]
-            DG5["LLM Guard Output Scan"]
-            DG6{"Safe finding?"}
-        end
-
-        subgraph RISK["RiskExpertAgent - ReAct Worker"]
-            R1["Inspect State"]
-            RG1["LLM Guard Input Scan"]
-            R2["Agent LLM Call<br/>select risk action/tool"]
-            RG2["LLM Guard Output Scan"]
-            RG3{"Safe action?"}
-            R3["Execute Risk Tool"]
-            R4["Observe Tool Result"]
-            RG4["LLM Guard Input Scan"]
-            R5["Agent LLM Call<br/>emit structured risk finding"]
-            RG5["LLM Guard Output Scan"]
-            RG6{"Safe finding?"}
-        end
-
-        COMPLETE["COMPLETED<br/>consensus reached"]
-        LIMIT["LOOP_LIMIT_REACHED<br/>controlled stop"]
-        BLOCKED["BLOCKED<br/>guardrail stop"]
+    subgraph WORKERS["Parallel ReAct workers inside AnalysisPhase"]
+        DA["DataAnalystAgent<br/>inspect -> select tools -> execute -> observe -> structured finding"]
+        RE["RiskExpertAgent<br/>inspect -> select tools -> execute -> observe -> structured finding"]
     end
 
     subgraph DATA_TOOLS["DataTools - deterministic Python"]
         DT1["Duplicate asset ID detection"]
         DT2["Missing output detection"]
         DT3["Missing risk parameter detection<br/>rating / PD / LGD / EAD / risk weight"]
-        DT4["Exposure concentration analysis"]
-        DT5["Portfolio / sector / asset-class anomaly detection"]
+        DT4["Non-positive exposure checks"]
+        DT5["Exposure concentration analysis"]
+        DT6["Portfolio / sector / asset-class anomaly detection"]
     end
 
     subgraph RISK_TOOLS["RiskTools - deterministic Python"]
         RT1["Deterministic RWA validation"]
         RT2["RWA movement-driver analysis"]
-        RT3["Risk and capital interpretation support"]
-        RT4["Basel / internal-policy context interpretation<br/>where available"]
+        RT3["Portfolio / sector / risk-class / rating-migration impacts"]
+        RT4["Capital and management-buffer concern detection"]
+        RT5["Basel / internal-policy context where available"]
     end
 
-    subgraph GUARD["LLM Guard Policy - cross-cutting scanners"]
-        GP1["Prompt injection"]
-        GP2["PII / sensitive data"]
-        GP3["Secrets"]
-        GP4["Toxicity / unsafe content"]
-        GP5["Relevance / factual consistency<br/>where applicable"]
-        GP6["Blocked event<br/>unsafe output is not written to AgentState"]
+    subgraph GUARD["LLM Guard - coarse safe boundaries"]
+        G1["Before each LLM-facing call<br/>prompt + summarized context scan"]
+        G2["After each LLM response<br/>generated output scan"]
+        G3["Before final response<br/>generated commentary scan"]
+        G4["Blocked event<br/>unsafe output is not written to AgentState"]
     end
 
     subgraph PROMPTS["Prompt Registry"]
         PR1["Langfuse Prompt Registry<br/>when enabled"]
-        PR2["Local fallback registry<br/>when Langfuse disabled"]
-        PR3["rwa-supervisor-agent-system"]
+        PR2["Local fallback registry<br/>when disabled"]
+        PR3["TTL cache"]
         PR4["rwa-data-analyst-agent-system"]
         PR5["rwa-risk-expert-agent-system"]
+        PR6["rwa-supervisor-agent-system"]
     end
 
-    subgraph OBS["Langfuse Observability - full execution layer"]
-        O1["graph execution ID"]
-        O2["thread ID"]
-        O3["node transitions + selected agents"]
-        O4["LLM calls + token usage + latency"]
-        O5["tool calls"]
-        O6["prompt versions"]
-        O7["LLM Guard scan results"]
-        O8["blocked / flagged events"]
-        O9["evaluation scores<br/>Faithfulness / Groundedness / Anomaly_Detection / Guardrail_Block_Count / PII_Detected / Prompt_Injection_Risk"]
+    subgraph OBS["Langfuse Observability - optional"]
+        O1["graph execution ID + thread ID"]
+        O2["node transitions + selected agents"]
+        O3["LLM calls + token usage + latency"]
+        O4["deterministic tool calls"]
+        O5["prompt versions"]
+        O6["LLM Guard scan results + blocked events"]
+        O7["evaluation scores<br/>Faithfulness / Groundedness / Anomaly_Detection / Guardrail_Block_Count / PII_Detected / Prompt_Injection_Risk"]
     end
 
     subgraph MEMORY["MemorySaver / Checkpointer"]
         M1["Persist AgentState"]
-        M2["thread_id = request_id"]
-        M3["loop iteration checkpoints"]
+        M2["thread_id = request_id or generated run_id"]
+        M3["loop recovery"]
         M4["human-in-the-loop readiness"]
-    end
-
-    subgraph OUTPUT["Structured Final Commentary"]
-        P1["MultiAgentRwaAnalysisResponse"]
-        P2["Executive Summary"]
-        P3["CRO View"]
-        P4["CFO View"]
-        P5["Recommended Actions"]
-        P6["Validation Flags"]
-        P7["Observability Metadata"]
     end
 
     REQ --> V1
@@ -133,90 +92,51 @@ flowchart LR
     V2 -->|PII-like fields detected| VREJ
     V2 -->|safe| V3 --> V4 --> STATE
 
-    STATE --> SG1 --> SG2 --> SG3 --> SG4
-    SG4 -->|blocked| GP6 --> BLOCKED
-    SG4 -->|safe| ROUTE
+    STATE --> A
+    A --> DA
+    A --> RE
+    DA --> DATA_TOOLS --> DA
+    RE --> RISK_TOOLS --> RE
+    DA --> S5
+    RE --> S5
+    S5 --> SUP
+    SUP --> ROUTE
+    ROUTE -->|required findings missing| A
+    ROUTE -->|critical flags and loop_count < 2| A
+    ROUTE -->|completed| FOG
+    ROUTE -->|loop limit reached| FOG
+    ROUTE -->|blocked| G4
+    FOG -->|safe| END
+    FOG -->|blocked| G4 --> END
 
-    ROUTE -->|run DataAnalystAgent| D1
-    ROUTE -->|run RiskExpertAgent| R1
-    ROUTE -->|complete| COMPLETE
-    ROUTE -->|loop limit| LIMIT
-    ROUTE -->|blocked| BLOCKED
+    G1 -.-> DA
+    G2 -.-> DA
+    G1 -.-> RE
+    G2 -.-> RE
+    G1 -.-> SUP
+    G2 -.-> SUP
+    G3 -.-> FOG
 
-    D1 --> DG1 --> D2 --> DG2 --> DG3
-    DG3 -->|blocked| GP6
-    DG3 -->|safe| D3 --> DATA_TOOLS --> D4 --> DG4 --> D5 --> DG5 --> DG6
-    DG6 -->|blocked| GP6
-    DG6 -->|safe| S5
-    S5 --> SG1
-
-    R1 --> RG1 --> R2 --> RG2 --> RG3
-    RG3 -->|blocked| GP6
-    RG3 -->|safe| R3 --> RISK_TOOLS --> R4 --> RG4 --> R5 --> RG5 --> RG6
-    RG6 -->|blocked| GP6
-    RG6 -->|safe| S5
-
-    DATA_TOOLS --> DT1
-    DATA_TOOLS --> DT2
-    DATA_TOOLS --> DT3
-    DATA_TOOLS --> DT4
-    DATA_TOOLS --> DT5
-
-    RISK_TOOLS --> RT1
-    RISK_TOOLS --> RT2
-    RISK_TOOLS --> RT3
-    RISK_TOOLS --> RT4
-
-    COMPLETE --> S12
-    LIMIT --> S12
-    BLOCKED --> S12
-    S12 --> P1
-    P1 --> P2
-    P1 --> P3
-    P1 --> P4
-    P1 --> P5
-    P1 --> P6
-    P1 --> P7
-
-    GP1 -.-> SG1
-    GP2 -.-> SG1
-    GP3 -.-> SG1
-    GP4 -.-> SG1
-    GP5 -.-> SG3
-    GP1 -.-> DG1
-    GP2 -.-> DG1
-    GP3 -.-> DG1
-    GP4 -.-> DG1
-    GP5 -.-> DG5
-    GP1 -.-> RG1
-    GP2 -.-> RG1
-    GP3 -.-> RG1
-    GP4 -.-> RG1
-    GP5 -.-> RG5
-
-    PROMPTS -.-> SG2
-    PROMPTS -.-> D2
-    PROMPTS -.-> D5
-    PROMPTS -.-> R2
-    PROMPTS -.-> R5
+    PROMPTS -.-> DA
+    PROMPTS -.-> RE
+    PROMPTS -.-> SUP
     PR1 --> PR3
-    PR1 --> PR4
-    PR1 --> PR5
     PR2 --> PR3
-    PR2 --> PR4
-    PR2 --> PR5
+    PR3 --> PR4
+    PR3 --> PR5
+    PR3 --> PR6
 
-    STATE -.-> M1
-    SG2 -.-> M3
-    D5 -.-> M3
-    R5 -.-> M3
+    STATE -.-> MEMORY
+    A -.-> M3
+    SUP -.-> M3
     M1 --> M2
     M1 --> M4
 
     REQ -.-> OBS
     GRAPH -.-> OBS
-    GUARD -.-> OBS
+    WORKERS -.-> OBS
     DATA_TOOLS -.-> OBS
     RISK_TOOLS -.-> OBS
+    GUARD -.-> OBS
     PROMPTS -.-> OBS
     MEMORY -.-> OBS

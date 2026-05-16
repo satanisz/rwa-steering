@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+from time import perf_counter
 
 import pytest
 from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import ValidationError
 
+import rwa_agent_service.discussion as discussion_module
 from rwa_agent_service import MultiAgentRwaAnalysisRequest, RwaAgentService
 from rwa_agent_service.config import AgentServiceSettings
 from rwa_agent_service.discussion import MultiAgentRwaDiscussionGraph
-from rwa_agent_service.discussion_schemas import AgentState
+from rwa_agent_service.discussion_schemas import (
+    AgentState,
+    DiscussionAgentFinding,
+    DiscussionAgentName,
+    DiscussionMessage,
+    ReActStep,
+)
 from rwa_agent_service.fastapi_app import create_app
 from rwa_agent_service.langfuse_integration import (
     LangfusePromptRegistry,
@@ -45,6 +53,8 @@ def test_multi_agent_discussion_returns_structured_commentary() -> None:
         "All calculator outputs with available parameters matched deterministic validation."
     ]
     assert response.observability.checkpointer == "MemorySaver"
+    assert response.observability.node_transition_count == 3
+    assert response.observability.thread_id == "task-1-analysis"
     assert response.observability.tool_call_count >= 4
     assert response.observability.guardrail_results
 
@@ -98,6 +108,44 @@ def test_llm_guard_blocks_prompt_injection_before_state_update() -> None:
     assert response.observability.guardrail_block_count > 0
     assert response.observability.prompt_injection_risk > 0
     assert any(flag.code == "LLM_GUARD_BLOCKED" for flag in response.validation_flags)
+
+
+def test_parallel_analysis_phase_runs_workers_concurrently(monkeypatch) -> None:
+    async def slow_data_agent(state: AgentState, *, system_prompt: str | None = None) -> AgentState:
+        _ = system_prompt
+        await asyncio.sleep(0.10)
+        state.agent_findings.append(_worker_finding("DataAnalystAgent"))
+        state.messages.append(
+            DiscussionMessage(agent_name="DataAnalystAgent", content="Data worker finished.")
+        )
+        return state
+
+    async def slow_risk_agent(state: AgentState, *, system_prompt: str | None = None) -> AgentState:
+        _ = system_prompt
+        await asyncio.sleep(0.10)
+        state.agent_findings.append(_worker_finding("RiskExpertAgent"))
+        state.messages.append(
+            DiscussionMessage(agent_name="RiskExpertAgent", content="Risk worker finished.")
+        )
+        return state
+
+    monkeypatch.setattr(discussion_module, "data_analyst_agent", slow_data_agent)
+    monkeypatch.setattr(discussion_module, "risk_expert_agent", slow_risk_agent)
+
+    started_at = perf_counter()
+    result = asyncio.run(
+        discussion_module.analysis_phase(
+            {"state": AgentState.from_request(_analysis_request(loop_limit=2))}
+        )
+    )
+    elapsed = perf_counter() - started_at
+
+    assert elapsed < 0.17
+    assert result["state"].loop_count == 1
+    assert {finding.agent_name for finding in result["state"].agent_findings} == {
+        "DataAnalystAgent",
+        "RiskExpertAgent",
+    }
 
 
 def test_multi_agent_state_rejects_pii_fields() -> None:
@@ -168,8 +216,9 @@ def test_langfuse_observability_fetches_prompts_and_scores() -> None:
     assert graph.backend_name == "langgraph"
     assert graph.checkpointer_name == "MemorySaver"
     assert telemetry.callback_handler_attached is True
-    assert telemetry.node_transition_count == 5
-    assert telemetry.llm_call_count == 5
+    assert telemetry.thread_id == "task-1-analysis"
+    assert telemetry.node_transition_count == 3
+    assert telemetry.llm_call_count == 3
     assert telemetry.tool_call_count == 4
     assert telemetry.total_token_count > 0
     assert {call["name"] for call in fake_client.prompt_calls} == {
@@ -292,3 +341,23 @@ class _FakeLangfuseClient:
 
 class _FakeCallbackHandler(BaseCallbackHandler):
     pass
+
+
+def _worker_finding(agent_name: DiscussionAgentName) -> DiscussionAgentFinding:
+    return DiscussionAgentFinding(
+        finding_id=f"{agent_name}-test",
+        agent_name=agent_name,
+        category="DATA_QUALITY" if agent_name == "DataAnalystAgent" else "RISK_INTERPRETATION",
+        severity="INFO",
+        title=f"{agent_name} finding",
+        summary=f"{agent_name} structured finding.",
+        react_steps=[
+            ReActStep(
+                agent_name=agent_name,
+                inspection="Inspect state.",
+                selected_action="Select deterministic tool.",
+                tool_name="test_tool",
+                observation="Observed deterministic result.",
+            )
+        ],
+    )

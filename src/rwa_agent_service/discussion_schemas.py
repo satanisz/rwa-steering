@@ -222,6 +222,7 @@ class MultiAgentObservability(AgentModel):
 
     langfuse_enabled: bool
     trace_id: str | None = None
+    thread_id: str | None = None
     callback_handler_attached: bool = False
     checkpointer: str
     prompt_usages: list[PromptUsage] = Field(default_factory=list)
@@ -242,7 +243,7 @@ class MultiAgentRwaAnalysisRequest(AgentModel):
     request_id: str | None = Field(default=None, max_length=128)
     rwa_input_data: list[RwaInputRecord] = Field(min_length=1)
     rwa_output_results: list[RwaOutputRecord] = Field(min_length=1)
-    loop_limit: int = Field(default=3, ge=1, le=10)
+    loop_limit: int = Field(default=2, ge=1, le=10)
     materiality_threshold: Decimal = Field(default=Decimal("0.05"), ge=Decimal("0"))
 
 
@@ -261,7 +262,7 @@ class AgentState(AgentModel):
     guardrail_blocked: bool = False
     next_agent: Literal["DataAnalystAgent", "RiskExpertAgent", "END"] = "DataAnalystAgent"
     loop_count: int = Field(default=0, ge=0)
-    loop_limit: int = Field(default=3, ge=1, le=10)
+    loop_limit: int = Field(default=2, ge=1, le=10)
     materiality_threshold: Decimal = Field(default=Decimal("0.05"), ge=Decimal("0"))
     consensus_reached: bool = False
     final_commentary: ExecutiveCommentaryPayload | None = None

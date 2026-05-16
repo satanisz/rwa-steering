@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from decimal import Decimal
-from time import perf_counter
+from time import perf_counter, time
 from typing import Any, Literal, Protocol
 
 from .config import AgentServiceSettings
@@ -63,13 +63,18 @@ class PromptRegistry(Protocol):
 class LocalPromptRegistry:
     """Fallback prompt provider used when Langfuse is disabled."""
 
+    def __init__(self) -> None:
+        self._cache: dict[DiscussionAgentName, AgentSystemPrompt] = {}
+
     def get_system_prompt(self, agent_name: DiscussionAgentName) -> AgentSystemPrompt:
-        return AgentSystemPrompt(
-            agent_name=agent_name,
-            prompt_name=_PROMPT_NAMES[agent_name],
-            content=_PROMPT_FALLBACKS[agent_name],
-            source="local_fallback",
-        )
+        if agent_name not in self._cache:
+            self._cache[agent_name] = AgentSystemPrompt(
+                agent_name=agent_name,
+                prompt_name=_PROMPT_NAMES[agent_name],
+                content=_PROMPT_FALLBACKS[agent_name],
+                source="local_fallback",
+            )
+        return self._cache[agent_name]
 
 
 class LangfusePromptRegistry:
@@ -82,8 +87,13 @@ class LangfusePromptRegistry:
 
             client = get_client()
         self._client = client
+        self._cache: dict[DiscussionAgentName, tuple[float, AgentSystemPrompt]] = {}
 
     def get_system_prompt(self, agent_name: DiscussionAgentName) -> AgentSystemPrompt:
+        cached = self._cache.get(agent_name)
+        ttl = self._settings.langfuse_prompt_cache_ttl_seconds
+        if cached is not None and ttl > 0 and time() - cached[0] <= ttl:
+            return cached[1]
         prompt_name = _PROMPT_NAMES[agent_name]
         fallback = _PROMPT_FALLBACKS[agent_name]
         prompt = self._client.get_prompt(
@@ -94,7 +104,7 @@ class LangfusePromptRegistry:
             fetch_timeout_seconds=self._settings.langfuse_prompt_fetch_timeout_seconds,
             fallback=fallback,
         )
-        return AgentSystemPrompt(
+        system_prompt = AgentSystemPrompt(
             agent_name=agent_name,
             prompt_name=prompt_name,
             content=_prompt_content(prompt, fallback=fallback),
@@ -102,6 +112,8 @@ class LangfusePromptRegistry:
             version=_prompt_version(prompt),
             raw_prompt=prompt,
         )
+        self._cache[agent_name] = (time(), system_prompt)
+        return system_prompt
 
 
 @dataclass
@@ -112,6 +124,7 @@ class LangfuseWorkflowTelemetry:
     client: Any | None = None
     callback_handler: Any | None = None
     trace_id: str | None = None
+    thread_id: str | None = None
     prompt_usages: list[PromptUsage] = field(default_factory=list)
     evaluation_scores: list[EvaluationScore] = field(default_factory=list)
     guardrail_results: list[GuardrailScanResult] = field(default_factory=list)
@@ -164,8 +177,8 @@ class LangfuseWorkflowTelemetry:
             context=self.client.start_as_current_observation(
                 name=name,
                 as_type="chain",
-                input={"request_id": request_id},
-                metadata={"component": "rwa_agent_service"},
+                input={"request_id": request_id, "thread_id": self.thread_id},
+                metadata={"component": "rwa_agent_service", "thread_id": self.thread_id},
             ),
         )
 
