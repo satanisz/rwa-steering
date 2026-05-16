@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from statistics import mean
-from typing import Any
+from typing import Any, cast
 
 from rwa_calculator.paths import NCCR_MAPPING_PATH, PREPROD_COUNTRY_INFO_PATH
 from rwa_calculator.rwa_calculator.calculator import RwaCalculator
@@ -715,8 +715,8 @@ def sector_path_steps(
             projection_date=projection_date,
             sector=sector,
             asset_count=int(values["asset_count"]),
-            exposure_amount=values["exposure_amount"].quantize(MONEY_Q),
-            rwa=values["rwa"].quantize(MONEY_Q),
+            exposure_amount=cast(Decimal, values["exposure_amount"]).quantize(MONEY_Q),
+            rwa=cast(Decimal, values["rwa"]).quantize(MONEY_Q),
         )
         for sector, values in sorted(buckets.items())
     ]

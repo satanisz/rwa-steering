@@ -5,8 +5,9 @@ from streamlit.testing.v1 import AppTest
 from rwa_dashboard.streamlit_app import APP_PAGES
 
 
-def test_dashboard_sidebar_routes_to_concept_pages() -> None:
+def test_dashboard_sidebar_routes_to_concept_pages(monkeypatch) -> None:
     """Exercise real page routing for the concept sidebar pages."""
+    monkeypatch.setenv("RWA_AGENT_LLM_PROVIDER", "deterministic")
     app = AppTest.from_file("src/rwa_dashboard/streamlit_app.py")
     app.run(timeout=120)
 
@@ -24,7 +25,12 @@ def test_dashboard_sidebar_routes_to_concept_pages() -> None:
     assert selector.value == "Forecast Monte Carlo"
     assert len(app.exception) == 0
 
-    for page_name in ["Scenario Analysis", "Data Lineage", "Reports & Evidence"]:
+    for page_name in [
+        "Scenario Analysis",
+        "Data Lineage",
+        "Reports & Evidence",
+        "RWA Intelligence Briefing",
+    ]:
         navigation = app.sidebar.radio[0]
         navigation.set_value(page_name)
         app.run(timeout=120)

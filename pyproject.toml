@@ -13,6 +13,7 @@ authors = [{ name = "RWA Steering Team" }]
 dependencies = [
     "fastapi>=0.115,<1.0",
     "httpx>=0.28,<1.0",
+    "langgraph>=0.2,<1.0",
     "pandas>=2.2,<3.0",
     "pandera>=0.22,<1.0",
     "pydantic>=2.10,<3.0",
@@ -25,6 +26,7 @@ dependencies = [
 
 [project.scripts]
 rwa-calculator = "rwa_calculator.rwa_backend:main"
+rwa-agents = "rwa_agent_service.cli:main"
 rwa-forecast = "rwa_forecast_service.cli:main"
 rwa-generate-missing-inputs = "rwa_steering.missing_inputs:main"
 rwa-dashboard = "rwa_dashboard.cli:main"
@@ -54,6 +56,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 rwa_calculator = ["*.csv", "preprod_dataset_summary.json", "*.md", "py.typed", "reference_data/**/*.json", "reference_data/**/*.md"]
+rwa_agent_service = ["py.typed"]
 rwa_dashboard = ["py.typed"]
 rwa_forecast_service = ["py.typed"]
 rwa_projection_service = ["py.typed"]
@@ -75,6 +78,7 @@ addopts = [
 ]
 filterwarnings = [
     "error",
+    "ignore::langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
     "ignore::DeprecationWarning:pandera.*",
 ]
 
@@ -135,7 +139,7 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["rwa_calculator", "rwa_dashboard", "rwa_forecast_service", "rwa_projection_service", "rwa_rats_service", "rwa_steering"]
+packages = ["rwa_agent_service", "rwa_calculator", "rwa_dashboard", "rwa_forecast_service", "rwa_projection_service", "rwa_rats_service", "rwa_steering"]
 strict = false
 check_untyped_defs = true
 warn_return_any = false

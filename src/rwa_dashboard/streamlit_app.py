@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import html
 from datetime import date
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
+from rwa_agent_service import BriefingRequest, RwaAgentService
+from rwa_agent_service.tools import AgentRuntimeContext
 from rwa_dashboard.data import (
     RWA_FINAL_FIELD,
     RWA_FOUNDATION_FIELD,
@@ -1514,8 +1517,30 @@ def render_steering(steering) -> None:
 
 def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -> None:
     """Render the agent-ready management briefing workspace from calculated data."""
+    agent_context = AgentRuntimeContext(
+        as_of_date=as_of_date,
+        scenario_id=runs.scenario_id,
+        snapshot=snapshot,
+        capital=capital,
+        overview=overview,
+        runs=runs,
+    )
+    try:
+        agent_response = RwaAgentService().run_from_context(
+            BriefingRequest(
+                as_of_date=as_of_date,
+                scenario_id=runs.scenario_id,
+            ),
+            agent_context,
+        )
+    except Exception as exc:
+        st.error(
+            "Live agent commentary is unavailable. No deterministic or templated "
+            "commentary was substituted."
+        )
+        st.caption(f"Ollama/Gemma error: {type(exc).__name__}: {exc}")
+        return
     output_floor = capital.output_floor
-    leverage = capital.leverage_ratio
     quality_summary = overview.data_quality_summary.copy()
     blocking_issues = (
         int(quality_summary.loc[quality_summary["is_blocking"], "count"].sum())
@@ -1530,10 +1555,9 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -
         <div class="briefing-card">
             <h4>5. RWA Intelligence Briefing</h4>
             <p>
-                Agent-ready workspace for reporting date {as_of_date.isoformat()}.
-                The visible figures are calculated from the prepared input package and
-                the complete model run set. Future agents can consume these same frames
-                without recalculating or substituting fallback data.
+                Agent graph for reporting date {as_of_date.isoformat()}.
+                The visible commentary is generated from prepared input files,
+                calculator outputs, capital modules and the complete model run set.
             </p>
         </div>
         """,
@@ -1573,7 +1597,10 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -
 
     with right:
         st.subheader("Agent workspace")
-        st.markdown(agent_slot_cards(snapshot, capital, overview, runs), unsafe_allow_html=True)
+        st.markdown(
+            agent_slot_cards(snapshot, capital, overview, runs, agent_response),
+            unsafe_allow_html=True,
+        )
         st.subheader("Capital briefing context")
         st.dataframe(format_table(capital.capital_stack), width="stretch", hide_index=True)
 
@@ -1582,33 +1609,61 @@ def render_agent_briefing(snapshot, capital, overview, as_of_date: date, runs) -
         st.subheader("Data quality findings")
         st.dataframe(format_table(quality_summary), width="stretch", hide_index=True)
     with lower_right:
-        st.subheader("Board commentary input panel")
-        cet1_ratio_text = format_pct(output_floor["cet1_ratio"])
-        leverage_ratio_text = format_pct(leverage["leverage_ratio"])
+        st.subheader("Board commentary")
+        commentary = agent_response.board_commentary
+        key_messages = "".join(
+            f"<li>{html.escape(message)}</li>" for message in commentary.key_messages
+        )
+        watchlist = "".join(f"<li>{html.escape(item)}</li>" for item in commentary.risk_watchlist)
         st.markdown(
             f"""
             <div class="briefing-card">
                 <h4>Board Commentary Agent</h4>
-                <p>Status: input-ready for the next implementation step.</p>
-                <p>Current inputs available: CET1 {cet1_ratio_text},
-                leverage {leverage_ratio_text},
-                {len(capital.capital_stack)} capital-stack components,
-                {quality_issues} data-quality findings and
-                {runs.model_summary["model"].nunique()} calculated model outputs.</p>
-                <span class="agent-status">Input contract ready</span>
+                <p>{html.escape(commentary.executive_summary)}</p>
+                <p><strong>Key messages</strong></p>
+                <ul>{key_messages}</ul>
+                <p><strong>Risk watchlist</strong></p>
+                <ul>{watchlist}</ul>
+                <span class="agent-status">Completed</span>
             </div>
             """,
             unsafe_allow_html=True,
         )
+        st.caption(
+            f"Trace {agent_response.observability.trace_id}; "
+            f"LLM provider {agent_response.observability.llm_provider}; "
+            f"RAG backend {agent_response.observability.rag_backend}."
+        )
 
     st.subheader("Evidence & traceability")
     st.markdown(evidence_trace_strip(snapshot, capital, overview, runs), unsafe_allow_html=True)
+    evidence_frame = pd.DataFrame(
+        [item.model_dump(mode="python") for item in agent_response.evidence_inventory]
+    )
+    st.dataframe(
+        format_table(evidence_frame),
+        width="stretch",
+        hide_index=True,
+    )
     for note in capital.methodology_notes:
         st.caption(note)
 
 
-def agent_slot_cards(snapshot, capital, overview, runs) -> str:
-    """Return HTML cards for the future agent registry slots."""
+def agent_slot_cards(snapshot, capital, overview, runs, agent_response=None) -> str:
+    """Return HTML cards for the agent registry slots."""
+    if agent_response is not None:
+        cards = [
+            (
+                '<div class="agent-card">'
+                f"<h4>{html.escape(result.agent_name)}</h4>"
+                f"<p>{html.escape(result.summary)}</p>"
+                f'<span class="agent-status">{result.status.title()}</span>'
+                "</div>"
+            )
+            for result in agent_response.agent_results
+        ]
+        return f'<div class="agent-grid">{"".join(cards)}</div>'
+
     validation_status = overview.manifest["validation_status"]
     hash_count = len(overview.manifest.get("file_sha256", {}))
     source_count = len(overview.manifest.get("source_files", []))
