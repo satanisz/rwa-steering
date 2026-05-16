@@ -1,21 +1,38 @@
 stateDiagram-v2
-    [*] --> SupervisorAgent
+    [*] --> RequestValidation
+    RequestValidation --> Rejected: invalid schema or unsafe PII-like input
+    RequestValidation --> AgentStateBuilt: valid anonymized request
+    AgentStateBuilt --> SupervisorInputGuard
 
-    SupervisorAgent --> GuardrailBlocked: guardrail_blocked == true
-    SupervisorAgent --> DataAnalystAgent: no data finding yet
-    SupervisorAgent --> RiskExpertAgent: data finding exists and no risk finding yet
-    SupervisorAgent --> DataAnalystAgent: critical flags remain and loop_count < loop_limit
-    SupervisorAgent --> Completed: consensus_reached == true
-    SupervisorAgent --> LoopLimitReached: loop_count >= loop_limit
+    SupervisorInputGuard --> GuardrailBlocked: blocked input
+    SupervisorInputGuard --> SupervisorAgent: allowed input
+    SupervisorAgent --> SupervisorOutputGuard
+    SupervisorOutputGuard --> GuardrailBlocked: unsafe output
+    SupervisorOutputGuard --> DataAnalystInputGuard: route DataAnalystAgent
+    SupervisorOutputGuard --> RiskExpertInputGuard: route RiskExpertAgent
+    SupervisorOutputGuard --> Completed: consensus reached
+    SupervisorOutputGuard --> LoopLimitReached: loop_count >= loop_limit
 
-    DataAnalystAgent --> DataTools: inspect state and select action
-    DataTools --> DataAnalystAgent: observe portfolio/anomaly/concentration results
-    DataAnalystAgent --> SupervisorAgent: append structured finding and actions
+    DataAnalystInputGuard --> GuardrailBlocked: blocked input
+    DataAnalystInputGuard --> DataInspectState: allowed input
+    DataInspectState --> DataSelectTool
+    DataSelectTool --> DataExecuteTool
+    DataExecuteTool --> DataObserveResult
+    DataObserveResult --> DataOutputGuard
+    DataOutputGuard --> GuardrailBlocked: unsafe output
+    DataOutputGuard --> SupervisorAgent: structured data finding persisted
 
-    RiskExpertAgent --> RiskTools: inspect state and select action
-    RiskTools --> RiskExpertAgent: observe formula and movement-driver results
-    RiskExpertAgent --> SupervisorAgent: append structured finding and actions
+    RiskExpertInputGuard --> GuardrailBlocked: blocked input
+    RiskExpertInputGuard --> RiskInspectState: allowed input
+    RiskInspectState --> RiskSelectTool
+    RiskSelectTool --> RiskExecuteTool
+    RiskExecuteTool --> RiskObserveResult
+    RiskObserveResult --> RiskOutputGuard
+    RiskOutputGuard --> GuardrailBlocked: unsafe output
+    RiskOutputGuard --> SupervisorAgent: structured risk finding persisted
 
-    GuardrailBlocked --> [*]: status BLOCKED
-    Completed --> [*]: status COMPLETED
-    LoopLimitReached --> [*]: status LOOP_LIMIT_REACHED
+    GuardrailBlocked --> FinalStructuredResponse: status BLOCKED
+    Completed --> FinalStructuredResponse: status COMPLETED
+    LoopLimitReached --> FinalStructuredResponse: status LOOP_LIMIT_REACHED
+    Rejected --> [*]
+    FinalStructuredResponse --> [*]
