@@ -189,4 +189,4 @@ reference data. Before production use, the methodology, reference data, jurisdic
 rating migrations, profitability proxies and steering recommendations must be reconciled with
 approved bank policy, binding legal text and model-risk governance.
 
-Legacy project READMEs are preserved in `docs_bob_README.md` and `docs_codex_README.md`.
+Legacy project READMEs are preserved in `docs/project-readmes/bob_README.md` and `docs/project-readmes/codex_README.md`.
